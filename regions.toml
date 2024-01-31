@@ -1,0 +1,69 @@
+
+[us-east1]
+coordinates = [32.8608, -79.9746]
+
+[us-east4]
+coordinates = [38.894, -77.0365]
+
+[us-east5]
+coordinates = [39.9587, -82.9987]
+
+[us-central1]
+coordinates = [41.2591, -95.8517]
+
+[us-west1]
+coordinates = [45.5999, -121.1871]
+
+[us-west2]
+coordinates = [34.0544, -118.244]
+
+[us-west3]
+coordinates = [40.7592, -111.8875]
+
+[us-west4]
+coordinates = [36.1685, -115.1164]
+
+[europe-west2]
+coordinates = [51.5095, -0.0955]
+
+[europe-west3]
+coordinates = [50.1188, 8.6843]
+
+[europe-west4]
+coordinates = [53.2157, 6.5765]
+
+[us-south1]
+coordinates = [32.7797, -96.8022]
+
+[asia-south1]
+coordinates = [19.0748, 72.8856]
+
+[asia-southeast1]
+coordinates = [1.2868, 103.8503]
+
+[asia-southeast2]
+coordinates = [-6.2114, 106.8446]
+
+[asia-northeast1]
+coordinates = [35.6887, 139.745]
+
+[asia-northeast2]
+coordinates = [34.6851, 135.5136]
+
+[northamerica-northeast1]
+coordinates = [45.4995, -73.5848]
+
+[northamerica-northeast2]
+coordinates = [43.6547, -79.3623]
+
+[australia-southeast1]
+coordinates = [-33.8563, 151.2122]
+
+[australia-southeast2]
+coordinates = [-37.8159, 144.9669]
+
+[southamerica-east1]
+coordinates = [-23.5335, -46.6359]
+
+[me-central1]
+coordinates= [25.2925, 51.5321]

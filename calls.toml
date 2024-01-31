@@ -1,0 +1,75 @@
+[vpc_networks]
+description = "VPC Networks"
+calls = ["global/networks"]
+parse_function = "parse_networks"
+
+[subnetworks]
+description = "Subnetworks"
+calls = ["aggregated/subnetworks"]
+parse_function = "parse_subnets"
+
+[firewall_rules]
+description = "Firewall Rules"
+calls = ["global/firewalls"]
+parse_function = "parse_firewall_rules"
+
+[instance_nics]
+description = "Instance NICs"
+calls = ["aggregated/instances"]
+parse_function = "parse_instance_nics"
+
+[instance_groups]
+description = "Instance Groups"
+calls = ["aggregated/instanceGroups"]
+
+[instance_group_managers]
+description = "Instance Group Managers"
+calls = ["aggregated/instanceGroupManagers"]
+
+[instance_templates]
+description = "Instance Templates"
+calls = ["aggregated/instanceTemplates"]
+
+[forwarding_rules]
+description = "Forwarding Rules"
+calls = ["aggregated/forwardingRules", "global/forwardingRules"]
+parse_function = "parse_forwarding_rules"
+
+[healthchecks]
+description = "Health Checks"
+calls = ["aggregated/healthChecks"]
+
+[cloud_routers]
+description = "Cloud Routers"
+calls = ["aggregated/routers"]
+
+[routes]
+description = "Routes"
+calls = ["global/routes"]
+
+[ssl_certificates]
+description = "SSL Certificates"
+calls = ["aggregated/sslCertificates"]
+
+[security_policys]
+description = "Cloud Armor Policies"
+calls = ["aggregated/securityPolicies"]
+
+[ssl_policies]
+description = "SSL Policies"
+calls = ["aggregated/sslPolicies"]
+
+[vpn_tunnels]
+description = "VPN Tunnels"
+calls = ["aggregated/vpnTunnels"]
+parse_function = "parse_vpn_tunnels"
+
+[cloud_vpn_gateways]
+description = "Cloud VPN Gateways"
+calls = ["aggregated/vpnGateways"]
+parse_function = "parse_cloud_vpn_gateways"
+
+[peer_vpn_gateways]
+description = "Peer VPN Gateways"
+calls = ["global/externalVpnGateways"]
+parse_function = "parse_peer_vpn_gateways"
