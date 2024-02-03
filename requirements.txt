@@ -1,0 +1,15 @@
+multidict
+google-auth
+oauthlib
+requests
+gcloud-aio-storage
+aiohttp
+pyyaml
+tomli
+tomli_w
+openpyxl
+flask
+flask[async]
+Flask-Mail
+quart
+hypercorn

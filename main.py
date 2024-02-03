@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from datetime import datetime
-
+from time import time
 
 class GCPProject:
 
@@ -9,8 +9,20 @@ class GCPProject:
 
         self.id = item.get('projectId')
         self.name = item.get('name')
-        self.number = int(item.get('number'))
-        self.created_timestamp = 0
+        self.number = int(item.get('projectNumber', 0))
+        self.state = item.get('lifecycleState', "UNKNOWN")
+        if create_time := item.get('createTime'):
+            date_time = f"{create_time[:10]} {create_time[11:19]}"
+            self.create_timestamp = int(datetime.timestamp(datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")))
+        else:
+            self.create_timestamp = 0
+        self.create_str = str(datetime.fromtimestamp(self.create_timestamp))  # Convert to human-readable string
+
+    def __repr__(self):
+        return str({k: v for k, v in vars(self).items() if v})
+
+    def __str__(self):
+        return str({k: v for k, v in vars(self).items() if v})
 
 
 class GCPItem:
@@ -65,9 +77,10 @@ class GCPNetworkItem(GCPItem):
         self.subnet_key = None
         self.subnet_name = None
         if subnetwork := item.get('subnetwork'):
-            name = subnetwork.split('/')[-1]
-            region = subnetwork.split('/')[-3]
-            self.subnet_key = f"{self.project_id}/{region}/{name}"
+            self.network_project_id = subnetwork.split('/')[-5]
+            self.region = subnetwork.split('/')[-3]
+            self.subnet_name = subnetwork.split('/')[-1]
+            self.subnet_key = f"{self.network_project_id}/{self.region}/{self.subnet_name}"
 
 
 class Network(GCPNetworkItem):
@@ -83,7 +96,7 @@ class Network(GCPNetworkItem):
         self.peerings = item.get('peerings', [])
         self.subnetworks = item.get('subnetworks', [])
         self.num_subnets = len(self.subnetworks)
-        self.mtu = item.get('mtu')
+        self.mtu = item.get('mtu', 0)
         self.auto_create_subnets = item.get('autoCreateSubnetworks', False)
         self.region = None
         self.subnet_key = None
@@ -158,7 +171,11 @@ class ForwardingRule(GCPNetworkItem):
         super().__init__(item)
 
         self.ip_address = item.get('IPAddress')
-        self.lb_scheme = item.get('loadBalancingScheme', "UNKNOWN")
+        self.lb_scheme = item.get('loadBalancingScheme', "UNKNOWN").upper()
+        self.is_internal = True if self.lb_scheme.startswith("INTERNAL") else False
+        self.is_external = True if self.lb_scheme.startswith("EXTERNAL") else False
+        self.is_managed = True if self.lb_scheme.endswith("_MANAGED") else False
+
         if target := item.get('target'):
             self.target = target.replace('https://www.googleapis.com/compute/v1/', "")
         else:
@@ -225,7 +242,7 @@ class VPNTunnel(GCPNetworkItem):
         self.subnet_key = None
 
 
-class Instance(GCPNetworkItem):
+class Instance(GCPItem):
 
     def __init__(self, item: dict = {}):
 
@@ -238,6 +255,7 @@ class Instance(GCPNetworkItem):
         self.machine_type = item.get('machineType', "unknown/unknown").split('/')[-1]
         self.ip_forwarding = item.get('canIpForward', False)
         self.status = item.get('status', "UNKNOWN")
+        self.nics = [InstanceNic(nic) for nic in item.get('networkInterfaces', [])]
 
 
 class InstanceNic(GCPNetworkItem):
@@ -262,6 +280,8 @@ class InstanceNic(GCPNetworkItem):
             self.external_ip_address = None
             if access_configs := item.get('accessConfigs'):
                 for access_config in access_configs:
+                    self.access_config_name = access_config.get('name')
+                    self.access_config_type = access_config.get('type')
                     self.external_ip_address = access_config.get('natIP')
 
 
@@ -275,6 +295,8 @@ class SSLCert(GCPNetworkItem):
         super().__init__(item)
 
         self.type = item.get('type', "UNKNOWN")
+        self.is_expired = False
+        self.is_expiring_soon = False
 
         self.issuer = "UNKNOWN"
         self.subject = "UNKNOWN"
@@ -308,3 +330,11 @@ class SSLCert(GCPNetworkItem):
         else:
             self.expire_timestamp = 0
         self.expire_str = str(datetime.fromtimestamp(self.expire_timestamp))  # Convert to human-readable string
+
+        now = int(time())
+
+        if self.expire_timestamp < now:
+            self.is_expired = True
+
+        if self.expire_timestamp < now + 21 * 24 * 3600:
+            self.is_expiring_soon = True

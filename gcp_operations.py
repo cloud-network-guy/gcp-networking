@@ -89,6 +89,7 @@ async def get_projects(access_token: str, sort_by: str = None) -> tuple:
         #return tuple(_)
         tasks = (parse_project(project) for project in _)
         projects = await gather(*tasks)
+        #projects = [Project(project) for project in _]
         if sort_by in PROJECT_FIELDS.keys():
             # Sort by a field defined by us
             projects = sorted(list(projects), key=lambda x: x.get(sort_by), reverse=False)
@@ -161,7 +162,7 @@ async def make_api_call(url: str, access_token: str, session: ClientSession = No
                     else:
                         break
                 else:
-                    break  # non-200 usually means lack of permissions; just skip it
+                    raise f"Invalid response: {str(response)}" #break  # non-200 usually means lack of permissions; just skip it
         await session.close()
     except Exception as e:
         await session.close()    # Something went wrong when opening the session; don't leave it hanging

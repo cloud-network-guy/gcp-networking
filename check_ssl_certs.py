@@ -1,8 +1,8 @@
 from asyncio import run, gather
 from time import time
 from pprint import pprint
-from gcp_operations import make_api_call, get_project_ids
-from utils import get_settings, get_adc_token, start_session
+from gcp_operations import make_api_call
+from utils import get_settings, get_adc_token, get_projects
 from main import *
 
 
@@ -62,7 +62,9 @@ async def main() -> list:
     access_token = await get_adc_token(quota_project_id=settings.get('quota_project_id'))
 
     print("Getting Projects...")
-    project_ids = await get_project_ids(access_token)
+    #project_ids = await get_project_ids(access_token)
+    projects = await get_projects(access_token)
+    project_ids = [project.id for project in projects]
 
     #session = None #await start_session()
 
@@ -110,8 +112,8 @@ async def main() -> list:
 
     certs_to_update = []
     for ssl_cert in ssl_certs:
-        if ssl_cert.expire_timestamp < start - 3 * 24 * 3600:
-            continue  # cert expired over 72 hours ago; assume we don't care
+        if ssl_cert.is_expired:
+            continue  # cert expired over 1 week ago; assume we don't care
         if ssl_cert.expire_timestamp < start + days_threshold * 24 * 3600:
             k = f"{ssl_cert.project_id}/{ssl_cert.region}/{ssl_cert.name}"
             if not active_certs.get(k):
@@ -122,7 +124,7 @@ async def main() -> list:
 
     # Sort so ones expiring soonest are first in the list
     certs_to_update = sorted(certs_to_update, key=lambda x: x.expire_timestamp, reverse=False)
-    return [ _.__dict__ for _ in certs_to_update ]
+    return [_.__dict__ for _ in certs_to_update]
 
 if __name__ == "__main__":
 

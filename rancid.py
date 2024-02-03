@@ -1,7 +1,7 @@
 #!/usr/bin/env python3 
 
 from asyncio import run, gather
-from utils import get_adc_token, read_service_account_key, write_data_file, get_settings, get_calls
+from utils import get_adc_token, read_service_account_key, write_data_file, get_settings, get_calls, get_projects
 from gcp_operations import get_project_ids, make_gcp_call
 
 
@@ -31,8 +31,9 @@ async def main():
         try:
             # Try to Authenticate via ADCs
             access_token = await get_adc_token()
-            project_ids = await get_project_ids(access_token)
-            projects = {_: {'access_token': access_token} for _ in project_ids}   # Use same token for all projects
+            #project_ids = await get_project_ids(access_token)
+            projects = await get_projects(access_token)
+            projects = {project.id: {'access_token': access_token} for project in projects}   # Use same token for all projects
         except Exception as e:
             quit(e)
 

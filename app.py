@@ -22,16 +22,17 @@ async def _version():
         return Response(format_exc(), status=500, content_type=CONTENT_TYPE)
 
 
-@app.route("/projects")
+@app.route("/get-projects")
 async def _projects():
 
-    from auth_operations import get_adc_token
-    from gcp_operations import get_projects
+    from utils import get_adc_token, get_projects
+    #from gcp_operations import get_projects
 
     try:
         settings = await get_settings()
         access_token = await get_adc_token(quota_project_id=settings.get('quota_project_id'))
-        _ = await get_projects(access_token, sort_by='created')
+        projects = await get_projects(access_token, sort_by='create_timestamp')
+        _ = [project.__dict__ for project in projects]
         return jsonify(_), RESPONSE_HEADERS
     except Exception as e:
         return Response(format_exc(), status=500, content_type=CONTENT_TYPE)
@@ -49,7 +50,7 @@ async def _rancid():
         return Response(format_exc(), status=500, content_type=CONTENT_TYPE)
 
 
-@app.route("/check_quotas")
+@app.route("/check-quotas")
 async def _check_quotas():
 
     from check_quotas import main

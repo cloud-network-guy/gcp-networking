@@ -1,7 +1,8 @@
 #!/usr/bin/env python3 
 
-from gcp_operations import get_project_ids, make_gcp_call
-from utils import get_adc_token
+
+from gcp_operations import make_gcp_call
+from utils import get_adc_token, get_projects
 from asyncio import run, gather, create_task
 import csv
 
@@ -208,14 +209,15 @@ async def main():
 
     try:
         access_token = await get_adc_token()
-        project_ids = await get_project_ids(access_token)
+        projects = await get_projects(access_token)
     except Exception as e:
         quit(e)
 
-    print("Gathering IP addresses across", len(project_ids), "projects...")
+    print("Gathering IP addresses across", len(projects), "projects...")
 
     tasks = []
-    for project_id in project_ids:
+    for project in projects:
+        project_id = project.id
         tasks.append(create_task(get_instance_nics(project_id, access_token)))
         tasks.append(create_task(get_fwd_rules(project_id, access_token)))
         tasks.append(create_task(get_cloud_nats(project_id, access_token)))

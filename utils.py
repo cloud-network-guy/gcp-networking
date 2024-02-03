@@ -189,6 +189,25 @@ async def get_settings(settings_file: str = None) -> dict:
         raise e
 
 
+async def get_projects(access_token: str, sort_by: str = None) -> tuple:
+
+    sort_fields = ('name', 'id', 'number', 'create_timestamp')
+
+    from gcp_operations import make_api_call
+    from main import GCPProject
+    try:
+        _ = await make_api_call('https://cloudresourcemanager.googleapis.com/v1/projects', access_token)
+        projects = [GCPProject(project) for project in _]
+        #if sort_by in sort_fields:
+            # Sort by a field defined by us
+        #    projects = sorted(list(projects), key=lambda x: x.get(sort_by), reverse=False)
+
+    except Exception as e:
+        raise e
+
+    return projects
+
+
 async def get_calls(calls_file: str = None) -> dict:
 
     try:
