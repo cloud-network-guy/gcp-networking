@@ -20,7 +20,6 @@ async def main():
     try:
         access_token = await get_adc_token()
         projects = await get_projects(access_token)
-
     except Exception as e:
         quit(e)
 
@@ -100,6 +99,7 @@ async def main():
         subnet_counts.append({
             'key': subnet.key,
             'network_name': subnet.network_name,
+            'cidr_range': subnet.cidr_range,
             'usable_ips': subnet.usable_ips,
             'num_instances': len(counts['instances']),
             'num_forwarding_rules': len(counts['forwarding_rules']),
@@ -118,6 +118,7 @@ async def main():
         project_counts.append({
             'id': project_id,
             'number': project.number,
+            'create_str': project.create_str,
             'state': project.state,
             'num_vpc_networks': len(counts['networks']),
             'num_firewall_rules': len(counts['firewall_rules']),

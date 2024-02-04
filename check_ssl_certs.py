@@ -2,7 +2,7 @@ from asyncio import run, gather
 from time import time
 from pprint import pprint
 from gcp_operations import make_api_call
-from utils import get_settings, get_adc_token, get_projects
+from utils import get_settings, get_adc_token, get_calls, get_projects
 from main import *
 
 
@@ -56,21 +56,30 @@ async def main() -> list:
     settings = await get_settings()
     cert_issuer = settings.get('cert_issuer')
     cert_subject = settings.get('cert_subject')
-    days_threshold = settings.get('days_threshold', 10)
+    days_threshold = settings.get('days_threshold', 14)
 
     print("Getting Google ADCs...")
     access_token = await get_adc_token(quota_project_id=settings.get('quota_project_id'))
 
     print("Getting Projects...")
-    #project_ids = await get_project_ids(access_token)
+    #project_ids = await get_prxoject_ids(access_token)
     projects = await get_projects(access_token)
     project_ids = [project.id for project in projects]
 
     #session = None #await start_session()
 
+    calls = await get_calls()
+
     print("Getting forwarding rules for", len(project_ids), "Projects...")
-    tasks = [get_forwarding_rules(project_id, access_token) for project_id in project_ids]
+
+    #tasks = [get_forwarding_rules(project_id, access_token) for project_id in project_ids]
+    #results = await gather(*tasks)
+
+    call = calls.get('forwarding_rules')['calls'][0]     
+    urls = [f"/compute/v1/projects/{project_id}/{call}" for project_id in project_ids]
+    tasks = [make_api_call(url, access_token) for url in urls]
     results = await gather(*tasks)
+
     forwarding_rules = [ForwardingRule(item) for items in results for item in items]
     # Filter to rules that reference an HTTPS Target proxy
     forwarding_rules = [rule for rule in forwarding_rules if 'targetHttpsProxies' in rule.target]
@@ -116,9 +125,8 @@ async def main() -> list:
             continue  # cert expired over 1 week ago; assume we don't care
         if ssl_cert.expire_timestamp < start + days_threshold * 24 * 3600:
             k = f"{ssl_cert.project_id}/{ssl_cert.region}/{ssl_cert.name}"
-            if not active_certs.get(k):
-                continue   # cert isn't associated with any Target HTTPS proxies, so we'll ignore it
-            certs_to_update.append(ssl_cert)
+            if active_certs.get(k):
+                certs_to_update.append(ssl_cert)
 
     print("Found", len(certs_to_update), "certs that expire soon.")
 

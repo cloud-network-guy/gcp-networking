@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 
 from asyncio import run
-from gcp_operations import get_adc_token, make_gcp_call
-import json
-
-MODULE = 'vpc-network'
-RESOURCE = 'google_compute_router_nat'
-PROJECT_ID = 'otc-vpc-shared'
-NETWORK = 'otc-vpc-shared'
+from utils import get_adc_token
+from gcp_operations import make_gcp_call
 
 
-def create_import_entry(resource):
+def create_import_entry(module, resource, project_id):
 
     text = ""
 
@@ -25,35 +20,33 @@ def create_import_entry(resource):
             nat_name = None
         text += "import { \n"
         if region:
-            if RESOURCE == 'google_compute_router_nat' and nat_name:
-                #text += f"  id = \"{PROJECT_ID}/{region}/{router}/{nat_name}\" \n"
-                #text += f"  to = module.{MODULE}.{RESOURCE}.default[\"{PROJECT_ID}/{region}/{router}/{nat_name}\"] \n"
-                text += f"  id = \"{PROJECT_ID}/{region}/{nat_name}\" \n"
-                text += f"  to = module.{MODULE}.google_compute_address.cloud_nat[\"{PROJECT_ID}/{region}/{nat_name}\"] \n"
+            if resource == 'google_compute_router_nat' and nat_name:
+                text += f"  id = \"{project_id}/{region}/{nat_name}\" \n"
+                text += f"  to = module.{module}.google_compute_address.cloud_nat[\"{project_id}/{region}/{nat_name}\"] \n"
             else:
-                text += f"  id = \"{PROJECT_ID}/{region}/{name}\" \n"
-                text += f"  to = module.{MODULE}.{RESOURCE}.default[\"{PROJECT_ID}/{region}/{name}\"] \n"
+                text += f"  id = \"{project_id}/{region}/{name}\" \n"
+                text += f"  to = module.{module}.{resource}.default[\"{project_id}/{region}/{name}\"] \n"
         else:
-            text += f"  id = \"{PROJECT_ID}/{name}\" \n"
-            text += f"  to = module.{MODULE}.{RESOURCE}.default[\"{PROJECT_ID}/{name}\"] \n"
+            text += f"  id = \"{project_id}/{name}\" \n"
+            text += f"  to = module.{module}.{resource}.default[\"{project_id}/{name}\"] \n"
         text += "}\n"
 
     return text
 
 
-async def main():
+async def main(module, resource, project_id, network):
 
     try:
-        access_token = get_adc_token()
+        access_token = await get_adc_token()
     except Exception as e:
         quit(e)
 
     # Make API Call
-    url = f"/compute/v1/projects/{PROJECT_ID}/aggregated/routers"
+    url = f"/compute/v1/projects/{project_id}/aggregated/routers"
     results = await make_gcp_call(url, access_token, api_name='compute')
 
     # Filter for specific network
-    items = [item for item in results.get('items', []) if item.get('network').endswith(NETWORK)]
+    items = [item for item in results.get('items', []) if item.get('network').endswith(network)]
 
     # Sort by create timestamp so oldest is first
     #items = sorted(items, key=lambda item: item['creationTimestamp'], reverse=False)
@@ -62,7 +55,21 @@ async def main():
     for region, router in routers.items():
         print(create_import_entry(router))
 
+
 if __name__ == '__main__':
 
-    run(main())
+    from sys import argv
+    from traceback import format_exc
 
+    try:
+        arg_names = ['module', 'resource', 'project_id', 'network']
+        if len(argv) > len(arg_names):
+            args = [argv[i+1] for i, v in enumerate(arg_names)]
+            run(main(args[0], args[1], args[2], args[3]))
+        else:
+            message = f"Usage: {argv[0]}"
+            for arg_name in arg_names:
+                message += f" <{arg_name}>"
+            quit(message)
+    except Exception as e:
+        quit(format_exc())

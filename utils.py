@@ -3,7 +3,6 @@ import yaml
 import tomli
 import tomli_w
 import csv
-from aiohttp import ClientSession
 from platform import system, machine, release
 from pathlib import Path
 from os import environ, makedirs, path
@@ -32,6 +31,7 @@ async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row:
     import openpyxl
 
     output_file = f"{get_home_dir()}{file_name}"
+
 
     wb = openpyxl.Workbook()
     for k, v in sheets.items():
@@ -69,6 +69,7 @@ async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row:
             ws.column_dimensions[openpyxl.utils.get_column_letter(i + 1)].width = column_widths[i] + 1
 
     # Save the file
+    del wb['Sheet']
     wb.save(filename=output_file)
     print(f"Wrote data to file: {output_file}")
 
@@ -233,10 +234,3 @@ async def get_version(request: dict) -> dict:
     except Exception as e:
         raise e
 
-
-async def start_session() -> ClientSession:
-
-    try:
-        return ClientSession(raise_for_status=True)
-    except Exception as e:
-        raise e

@@ -1,6 +1,7 @@
 [vpc_networks]
 description = "VPC Networks"
 calls = ["global/networks"]
+object = "VPCNetwork"
 parse_function = "parse_networks"
 
 [subnetworks]
@@ -13,8 +14,8 @@ description = "Firewall Rules"
 calls = ["global/firewalls"]
 parse_function = "parse_firewall_rules"
 
-[instance_nics]
-description = "Instance NICs"
+[instances]
+description = "Instances"
 calls = ["aggregated/instances"]
 parse_function = "parse_instance_nics"
 
