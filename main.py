@@ -149,10 +149,31 @@ class CloudRouter(GCPNetworkItem):
                 'advertise_mode': bgp_peer.get('advertiseMode'),
             }
             self.bgp_peers.append(_)
-        self.subnet_key = None
+
+        self.cloud_nats = [CloudNat(nat) for nat in item.get('nats', [])]
+        self.nat_ips = []
 
     def get_routes(self):
         pass
+
+    async def get_status(self):
+        pass
+
+class CloudNat(GCPNetworkItem):
+
+    def __init__(self, item: dict = {}):
+
+        super().__init__(item)
+
+        self.ip_allocation_option = item.get('natIpAllocateOption', "UNKNOWN")
+        self.min_ports_per_vm = item.get('minPortsPerVm', 0)
+        self.max_ports_per_vm = item.get('maxPortsPerVm', 0)
+        self.enable_dpa = item.get('enableDynamicPortAllocation')
+        self.enable_eim = item.get('enableEndpointIndependentMapping')
+        self.ips = []
+        for nat_ip in item.get('natIps', []):
+            _ = nat_ip.split('/')[-1]
+            self.ips.append(_)
 
 
 class FirewallRule(GCPNetworkItem):
@@ -278,6 +299,8 @@ class InstanceNic(GCPNetworkItem):
                 self.subnet_key = f"{self.network_project_id}/{self.region}/{self.subnet_name}"
 
             # Also check if the instance has any active NAT IP addresses
+            self.access_config_name = None
+            self.access_config_type = None
             self.external_ip_address = None
             if access_configs := item.get('accessConfigs'):
                 for access_config in access_configs:
@@ -339,3 +362,46 @@ class SSLCert(GCPNetworkItem):
 
         if self.expire_timestamp < now + 21 * 24 * 3600:
             self.is_expiring_soon = True
+
+
+class GKECluster(GCPItem):
+
+    def __init__(self, item: dict = {}):
+
+        super().__init__(item)
+
+        self.endpoint_ips = []
+        if private_cluster_config := item.get('privateClusterConfig'):
+            if public_endpoint := private_cluster_config.get('publicEndpoint'):
+                self.endpoint_ips.append(public_endpoint)
+            if private_cluster_config.get('enablePrivateEndpoint'):
+                if private_endpoint := private_cluster_config.get('privateEndpoint'):
+                    self.endpoint_ips.append(private_endpoint)
+        self.network_key = "unknown/unknown"
+        if node_pools := item.get('nodePools'):
+            if network_config := node_pools[0].get('networkConfig'):
+                if network := network_config.get('network'):
+                    self.network_project_id = network.split('/')[-4]
+                    self.network_name = network.split('/')[-1]
+                    self.network_key = f"{self.network_project_id}/{self.network_name}"
+        location = item.get('location', "unknown-0")
+        self.region = location.split("/")[-1][:-2] if location[-2] == '-' else location
+
+
+class CloudSQL(GCPItem):
+
+    def __init__(self, item: dict = {}):
+
+        super().__init__(item)
+
+        self.project_id = item.get('project', "UNKNOWN")
+        self.ip_addresses = []
+        if settings := item.get('settings'):
+            if ip_configuration := settings.get('ipConfiguration'):
+                if network := ip_configuration.get('privateNetwork'):
+                    self.network_project_id = network.split('/')[-4]
+                    self.network_name = network.split('/')[-1]
+                    self.network_key = f"{self.network_project_id}/{self.network_name}"
+            for ip_address in item.get('ipAddresses', []):
+                _ = ip_address.get('ipAddress')
+                self.ip_addresses.append(_)

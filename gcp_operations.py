@@ -126,10 +126,15 @@ async def make_api_call(url: str, access_token: str, session: ClientSession = No
     else:
         # Url is something like /compute/v1/projects/{PROJECT_ID}...
         url = url[1:] if url.startswith("/") else url
-        api_name = url.split('/')[0]
+        if 'clusters' in url:
+            api_name = "container"
+        else:
+            api_name = url.split('/')[0]
         url = f"https://{api_name}.googleapis.com/{url}"
 
-    if api_name in ['compute', 'sqladmin']:
+    if api_name in ['compute']:
+        items_key = 'items' if 'aggregated' in url or 'global' in url else 'result'
+    elif api_name in ['sqladmin']:
         items_key = 'items'
     else:
         items_key = url.split("/")[-1]
@@ -145,6 +150,8 @@ async def make_api_call(url: str, access_token: str, session: ClientSession = No
                 if int(response.status) == 200:
                     json_data = await response.json()
                     if items := json_data.get(items_key):
+                        if items_key == 'result':
+                            items = [items]
                         if 'aggregated/' in url:
                             _ = []
                             # With aggregated results, we have to walk each region to get the items

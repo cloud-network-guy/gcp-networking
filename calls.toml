@@ -1,76 +1,103 @@
 [vpc_networks]
 description = "VPC Networks"
+api_name = "compute"
 calls = ["global/networks"]
 object = "VPCNetwork"
 parse_function = "parse_networks"
 
 [subnetworks]
 description = "Subnetworks"
+api_name = "compute"
 calls = ["aggregated/subnetworks"]
 parse_function = "parse_subnets"
 
 [firewall_rules]
 description = "Firewall Rules"
+api_name = "compute"
 calls = ["global/firewalls"]
 parse_function = "parse_firewall_rules"
 
 [instances]
 description = "Instances"
+api_name = "compute"
 calls = ["aggregated/instances"]
 parse_function = "parse_instance_nics"
 
 [instance_groups]
 description = "Instance Groups"
+api_name = "compute"
 calls = ["aggregated/instanceGroups"]
 
 [instance_group_managers]
 description = "Instance Group Managers"
+api_name = "compute"
 calls = ["aggregated/instanceGroupManagers"]
 
 [instance_templates]
 description = "Instance Templates"
+api_name = "compute"
 calls = ["aggregated/instanceTemplates"]
 
 [forwarding_rules]
 description = "Forwarding Rules"
+api_name = "compute"
 calls = ["aggregated/forwardingRules", "global/forwardingRules"]
 parse_function = "parse_forwarding_rules"
 
 [healthchecks]
 description = "Health Checks"
+api_name = "compute"
 calls = ["aggregated/healthChecks"]
 
 [cloud_routers]
 description = "Cloud Routers"
+api_name = "compute"
 calls = ["aggregated/routers"]
 
 [routes]
 description = "Routes"
+api_name = "compute"
 calls = ["global/routes"]
 
 [ssl_certificates]
 description = "SSL Certificates"
+api_name = "compute"
 calls = ["aggregated/sslCertificates"]
 
 [security_policys]
 description = "Cloud Armor Policies"
+api_name = "compute"
 calls = ["aggregated/securityPolicies"]
 
 [ssl_policies]
 description = "SSL Policies"
+api_name = "compute"
 calls = ["aggregated/sslPolicies"]
 
 [vpn_tunnels]
 description = "VPN Tunnels"
+api_name = "compute"
 calls = ["aggregated/vpnTunnels"]
 parse_function = "parse_vpn_tunnels"
 
 [cloud_vpn_gateways]
 description = "Cloud VPN Gateways"
+api_name = "compute"
 calls = ["aggregated/vpnGateways"]
 parse_function = "parse_cloud_vpn_gateways"
 
 [peer_vpn_gateways]
 description = "Peer VPN Gateways"
+api_name = "compute"
 calls = ["global/externalVpnGateways"]
 parse_function = "parse_peer_vpn_gateways"
+
+[gke_clusters]
+description = "GKE Clusters"
+api_name = "container"
+calls = ["global/externalVpnGateways"]
+
+[cloud_sqls]
+description = "Cloud SQL Instances"
+api_name = "sqladmin"
+calls = ["instances"]
