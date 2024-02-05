@@ -12,9 +12,7 @@ async def get_forwarding_rules(project_id: str, access_token: str) -> list:
     try:
         # use aggregated call since it's the fastest
         url = f"/compute/v1/projects/{project_id}/aggregated/forwardingRules"
-        #print(url)
         _ = await make_api_call(url, access_token)
-        #print(_)
         results.extend(_)
     except Exception as e:
         raise f"Error getting Forwarding Rules: {e}"
