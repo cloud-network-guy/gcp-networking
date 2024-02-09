@@ -60,20 +60,14 @@ async def main() -> list:
     access_token = await get_adc_token(quota_project_id=settings.get('quota_project_id'))
 
     print("Getting Projects...")
-    #project_ids = await get_prxoject_ids(access_token)
     projects = await get_projects(access_token)
     project_ids = [project.id for project in projects]
-
-    #session = None #await start_session()
 
     calls = await get_calls()
 
     print("Getting forwarding rules for", len(project_ids), "Projects...")
 
-    #tasks = [get_forwarding_rules(project_id, access_token) for project_id in project_ids]
-    #results = await gather(*tasks)
-
-    call = calls.get('forwarding_rules')['calls'][0]     
+    call = calls.get('forwarding_rules')['calls'][0]
     urls = [f"/compute/v1/projects/{project_id}/{call}" for project_id in project_ids]
     tasks = [make_api_call(url, access_token) for url in urls]
     results = await gather(*tasks)
@@ -83,20 +77,14 @@ async def main() -> list:
     forwarding_rules = [rule for rule in forwarding_rules if 'targetHttpsProxies' in rule.target]
     print("Discovered", len(forwarding_rules), "HTTPS Forwarding Rules")
 
-    #print(forwarding_rules)
-    #  determine which region(s) each project uses
-
     regions_by_project = {project_id: [] for project_id in project_ids}
     for item in forwarding_rules:
         project_id = item.project_id
         region = item.region
-       # print(project_id, region)
         regions = regions_by_project.get(project_id, [])
         if region not in regions:
             regions.append(region)
-            #print(project_id, regions)
             regions_by_project.update({project_id: regions})
-    #print(regions_by_project['otl-csd-ops-archive-ctr'])
 
     print("Getting SSL Certificate for", len(project_ids), "Projects...")
     tasks = [get_ssl_certs(project_id, access_token, regions_by_project[project_id]) for project_id in project_ids]

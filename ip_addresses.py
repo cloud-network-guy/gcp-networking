@@ -36,23 +36,21 @@ async def main():
     instances = [Instance(_) for _ in _]
     for instance in instances:
         for nic in instance.nics:
-            ip_addresses.append({
+            _ = {k: getattr(instance, k) for k in ('name', 'project_id', 'region')}
+            _.update({
                 'ip_address': nic.ip_address,
                 'type': "GCE Instance NIC",
-                'name': instance.name,
-                'project_id': instance.project_id,
-                'region': instance.region,
                 'network_key': nic.network_key,
             })
+            ip_addresses.append(_)
             if nic.access_config_name:
-                ip_addresses.append({
+                _ = {k: getattr(instance, k) for k in ('name', 'project_id', 'region')}
+                _.update({
                     'ip_address': nic.external_ip_address,
                     'type': "GCE Instance NAT IP",
-                    'name': instance.name,
-                    'project_id': instance.project_id,
-                    'region': instance.region,
                     'network_key': nic.network_key,
                 })
+                ip_addresses.append(_)
 
     print("Getting Forwarding_rules...")
     urls = []
@@ -64,14 +62,12 @@ async def main():
     _ = [item for items in results for item in items]  # Flatten results
     forwarding_rules = [ForwardingRule(_) for _ in _]
     for forwarding_rule in forwarding_rules:
-        ip_addresses.append({
+        _ = {k: getattr(forwarding_rule, k) for k in ('name', 'project_id', 'region', 'network_key')}
+        _.update({
             'ip_address': forwarding_rule.ip_address,
             'type': "Forwarding Rule",
-            'name': forwarding_rule.name,
-            'project_id': forwarding_rule.project_id,
-            'region': forwarding_rule.region,
-            'network_key': forwarding_rule.network_key,
         })
+        ip_addresses.append(_)
 
     print("Getting Cloud Routers...")
     urls = []
@@ -88,8 +84,7 @@ async def main():
         if len(router.cloud_nats) == 0:
             continue
         project_id = router.project_id
-        region = router.region
-        call = f"/compute/v1/projects/{project_id}/regions/{region}/routers/{router.name}/getRouterStatus"
+        call = f"/compute/v1/projects/{project_id}/regions/{router.region}/routers/{router.name}/getRouterStatus"
         try:
             _ = await make_api_call(call, access_token)
         except:
@@ -101,14 +96,12 @@ async def main():
                     nat_ips.extend(nat_status.get('autoAllocatedNatIps', []))
                     nat_ips.extend(nat_status.get('userAllocatedNatIps', []))
             for nat_ip in nat_ips:
-                ip_addresses.append({
+                _ = {k: getattr(router, k) for k in ('name', 'project_id', 'region', 'network_key')}
+                _.update({
                     'ip_address': nat_ip,
                     'type': "Cloud NAT External IP",
-                    'name': router.name,
-                    'project_id': router.project_id,
-                    'network_key': router.network_key,
-                    'region': region,
                 })
+                ip_addresses.append(_)
 
     print("Getting GKE Endpoints...")
     urls = [f"/v1/projects/{project.id}/locations/-/clusters" for project in projects]
@@ -118,14 +111,12 @@ async def main():
     gke_clusters = [GKECluster(_) for _ in _]
     for gke_cluster in gke_clusters:
         for endpoint_ip in gke_cluster.endpoint_ips:
-            ip_addresses.append({
+            _ = {k: getattr(gke_cluster, k) for k in ('name', 'project_id', 'region', 'network_key')}
+            _.update({
                 'ip_address': endpoint_ip,
                 'type': "GKE Endpoint",
-                'name': gke_cluster.name,
-                'project_id': gke_cluster.project_id,
-                'network_key': gke_cluster.network_key,
-                'region': gke_cluster.region,
             })
+            ip_addresses.append(_)
 
     print("Getting Cloud SQL Instances...")
     urls = [f"https://sqladmin.googleapis.com/v1/projects/{project.id}/instances" for project in projects]
@@ -136,14 +127,12 @@ async def main():
 
     for cloud_sql in cloud_sqls:
         for ip_address in cloud_sql.ip_addresses:
-            ip_addresses.append({
+            _ = {k: getattr(cloud_sql, k) for k in ('name', 'project_id', 'region', 'network_key')}
+            _.update({
                 'ip_address': ip_address,
                 'type': "Cloud SQL Instance",
-                'name': cloud_sql.name,
-                'project_id': cloud_sql.project_id,
-                'network_key': cloud_sql.network_key,
-                'region': cloud_sql.region,
             })
+            ip_addresses.append(_)
 
     return ip_addresses
 
