@@ -1,7 +1,7 @@
 #!/usr/bin/env python3 
 
 
-from gcp_operations import make_gcp_call, make_api_call
+from gcp_operations import make_api_call
 from utils import get_adc_token, get_projects, get_calls, write_to_excel
 from asyncio import run, gather
 from main import *
@@ -14,7 +14,6 @@ XLSX_FILE = "ip_addresses.xlsx"
 
 
 async def main():
-
     try:
         access_token = await get_adc_token()
         projects = await get_projects(access_token)
@@ -142,11 +141,10 @@ if __name__ == "__main__":
     data = []
     _ = run(main())
     for row in _:
-        data.append({k: row.get(k) for k in COLUMNS})
+        data.append({k: row[k] for k in COLUMNS if row.get(k) is not None})
     del _
-    data = sorted(data, key=lambda x: x[SORT_COLUMN], reverse=False)
+    data = sorted(data, key=lambda x: x.get(SORT_COLUMN, "UNKNOWN"), reverse=False)
     sheets = {
         'ip_addresses': {'description': "IP Addresses", 'data': data},
     }
     _ = run(write_to_excel(sheets, XLSX_FILE))
-
