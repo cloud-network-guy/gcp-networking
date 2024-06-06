@@ -159,6 +159,7 @@ class CloudRouter(GCPNetworkItem):
     async def get_status(self):
         pass
 
+
 class CloudNat(GCPNetworkItem):
 
     def __init__(self, item: dict = {}):
@@ -366,7 +367,7 @@ class SSLCert(GCPNetworkItem):
 
 class GKECluster(GCPItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -390,7 +391,7 @@ class GKECluster(GCPItem):
 
 class CloudSQL(GCPItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -405,3 +406,21 @@ class CloudSQL(GCPItem):
             for ip_address in item.get('ipAddresses', []):
                 _ = ip_address.get('ipAddress')
                 self.ip_addresses.append(_)
+
+
+class SecurityPolicy(GCPItem):
+
+    def __init__(self, item: dict):
+
+        super().__init__(item)
+
+        self.type = item.get('type', "UNKNOWN")
+        self.rules = []
+        for rule in item.get('rules', []):
+            self.rules.append({
+                'description': rule.get('description'),
+                'priority': rule.get('priority'),
+                'action': rule.get('action'),
+                'match': str(rule.get('match')),
+                'preview': rule.get('preview'),
+            })

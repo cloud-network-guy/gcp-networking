@@ -32,8 +32,8 @@ async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row:
 
     output_file = f"{get_home_dir()}{file_name}"
 
-
     wb = openpyxl.Workbook()
+
     for k, v in sheets.items():
 
         # Create worksheet

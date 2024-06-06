@@ -1,6 +1,6 @@
 multidict
-google-auth
 oauthlib
+google-auth
 requests
 gcloud-aio-storage
 aiohttp
@@ -9,7 +9,6 @@ tomli
 tomli_w
 openpyxl
 flask
-flask[async]
 Flask-Mail
 quart
 hypercorn
