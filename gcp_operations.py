@@ -60,7 +60,6 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
 
     return results
     
-"""
 
 
 async def parse_project(project: dict) -> dict:
@@ -103,8 +102,6 @@ async def get_projects(access_token: str, sort_by: str = None) -> tuple:
 
     return tuple(projects)
 
-
-"""
 async def get_project_ids(access_token: str, projects: list = None) -> tuple:
 
     try:
@@ -195,6 +192,7 @@ async def get_api_data(urls: list, access_token: str, session: ClientSession = N
         #api_name = url.split('/')[0]
         #url = f"https://{api_name}.googleapis.com/{url}"
 
+        api_name = "compute"
         if url.startswith('http:') or url.startswith('https:'):
             # Urls is fully defined, just need to find API name
             _ = url[7:] if url.startswith('http:') else url[8:]

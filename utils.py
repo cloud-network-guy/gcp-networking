@@ -3,11 +3,6 @@ import yaml
 import tomli
 import tomli_w
 import csv
-from platform import system, machine, release
-from pathlib import Path
-from os import environ, makedirs, path
-from sys import version
-from openpyxl import Workbook, utils
 
 ENCODING = 'utf-8'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
@@ -16,6 +11,9 @@ CALLS_FILE = 'calls.toml'
 
 
 def get_home_dir() -> str:
+
+    from platform import system
+    from os import environ
 
     if my_os := system().lower():
         if my_os.startswith("win"):
@@ -28,6 +26,8 @@ def get_home_dir() -> str:
 
 
 async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row: int = 1):
+
+    from openpyxl import Workbook, utils
 
     output_file = f"{get_home_dir()}{file_name}"
 
@@ -75,6 +75,8 @@ async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row:
 
 async def read_data_file(file_name: str, file_format: str = None) -> dict:
 
+    from pathlib import Path
+
     if not file_format:
         file_format = file_name.split('.')[-1].lower()
 
@@ -97,6 +99,8 @@ async def read_data_file(file_name: str, file_format: str = None) -> dict:
 
 
 async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
+
+    from os import path, makedirs
 
     sub_dir = file_name.split('/')[0]
     if not path.exists(sub_dir):
@@ -128,6 +132,7 @@ async def write_data_file(file_name: str, file_contents: any = None, file_format
 
 async def write_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
 
+    from os import path, makedirs
     import aiofiles
 
     if '/' in file_name:
@@ -144,12 +149,12 @@ async def write_file(file_name: str, file_contents: any = None, file_format: str
 
 async def get_adc_token(quota_project_id: str = None):
 
-    import google.auth
-    import google.auth.transport.requests
+    from google.auth import default
+    from google.auth.transport.requests import Request
 
     try:
-        credentials, project_id = google.auth.default(scopes=SCOPES, quota_project_id=quota_project_id)
-        _ = google.auth.transport.requests.Request()
+        credentials, project_id = default(scopes=SCOPES, quota_project_id=quota_project_id)
+        _ = Request()
         credentials.refresh(_)
         return credentials.token  # return access token
     except Exception as e:
@@ -158,8 +163,9 @@ async def get_adc_token(quota_project_id: str = None):
 
 async def read_service_account_key(file: str) -> dict:
 
-    import google.oauth2
-    import google.auth.transport.requests
+    from platform import system
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
 
     # If running on Windows, change forward slashes to backslashes
     if system().lower().startswith("win"):
@@ -173,8 +179,8 @@ async def read_service_account_key(file: str) -> dict:
         raise e
 
     try:
-        credentials = google.oauth2.service_account.Credentials.from_service_account_file(file, scopes=SCOPES)
-        _ = google.auth.transport.requests.Request()
+        credentials = service_account.Credentials.from_service_account_file(file, scopes=SCOPES)
+        _ = Request()
         credentials.refresh(_)
         return {'project_id': project_id, 'access_token': credentials.token}
     except Exception as e:
@@ -201,7 +207,7 @@ async def get_projects(access_token: str, sort_by: str = None) -> list:
     try:
         url = "https://cloudresourcemanager.googleapis.com/v1/projects"
         _ = await make_api_call(url, access_token)
-        print(_)
+        #print(_)
         projects = [GCPProject(project_info) for project_info in _]
         if sort_by in ['name', 'id', 'number', 'create_timestamp']:
             projects = sorted(list(projects), key=lambda x: x.get(sort_by), reverse=False)
@@ -226,6 +232,8 @@ async def get_calls(calls_file: str = None) -> dict:
 
 async def get_version(request: dict) -> dict:
 
+    from platform import system, machine, release, version
+
     try:
         _ = {
             'os': "{} {}".format(system(), release()),
@@ -236,4 +244,3 @@ async def get_version(request: dict) -> dict:
         return _
     except Exception as e:
         raise e
-
