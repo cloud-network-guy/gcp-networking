@@ -10,14 +10,21 @@ class GCPProject:
 
         self.id = item.get('projectId')
         self.name = item.get('name')
-        self.number = int(item.get('projectNumber', 0))
+        self.number = int(item.get('projectNumber', 000000000))
         self.state = item.get('lifecycleState', "UNKNOWN")
+        #self.labels = item.get('labels', {})
         if create_time := item.get('createTime'):
             date_time = f"{create_time[:10]} {create_time[11:19]}"
             self.create_timestamp = int(datetime.timestamp(datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")))
         else:
             self.create_timestamp = 0
         self.create_str = str(datetime.fromtimestamp(self.create_timestamp))  # Convert to human-readable string
+
+        parent_folder_id = None
+        if parent := item.get('parent'):
+            if parent.get('type') == 'folder':
+                parent_folder_id = parent.get('id')
+        self.parent_folder_id = int(parent_folder_id) if parent_folder_id else 000000000
 
     def __repr__(self):
         return str({k: v for k, v in vars(self).items() if v})
@@ -38,17 +45,29 @@ class GCPItem:
         else:
             self.creation_timestamp = 0
 
-        if zone := item.get('zone'):
-            self.zone = zone.split('/')[-1]
+        if _ := item.get('zone'):
+            self.zone = _.split('/')[-1]
             self.region = self.zone[:-2]
         else:
-            self.region = item.get('region', "/global").split('/')[-1]
             self.zone = None
-        if self_link := item.get('selfLink'):
-            self.id = self_link.replace('https://www.googleapis.com/compute/v1/', "")
-            self.project_id = self_link.split('/')[-4 if self.region == 'global' else -5]
+            self.region = item.get('region', "/global").split('/')[-1]
+
+        if _ := item.get('selfLink'):
+            self.id = _.replace('https://www.googleapis.com/compute/v1/', "")
+            self.project_id = _.split('/')[-4 if self.region == 'global' else -5]
+        elif _ := item.get('id'):
+            self.id = _
+            self.project_id = id.split('/')[1]
         else:
             self.id = ""
+            self.project_id = "unknown"
+
+        if self.zone:
+            self.key = f"{self.project_id}/{self.zone}/{self.name}"
+        elif self.region == 'global':
+            self.key = f"{self.project_id}/{self.name}"
+        else:
+            self.key = f"{self.project_id}/{self.region}/{self.name}"
 
     def __repr__(self):
         return str({k: v for k, v in vars(self).items() if v})
@@ -109,9 +128,11 @@ class Subnet(GCPNetworkItem):
 
         super().__init__(item)
 
+        self.purpose = item.get('purpose', "UNKNOWN")
         if cidr_range := item.get('ipCidrRange'):
             self.cidr_range = cidr_range
             self.usable_ips = (2 ** (32 - int(cidr_range.split('/')[-1]))) - 4
+
         self.key = f"{self.project_id}/{self.region}/{self.name}"
 
 
@@ -193,7 +214,7 @@ class ForwardingRule(GCPNetworkItem):
 
         super().__init__(item)
 
-        self.ip_address = item.get('IPAddress')
+        self.ip_address = item.get('IPAddress', "UNKNOWN")
         self.lb_scheme = item.get('loadBalancingScheme', "UNKNOWN").upper()
         self.is_internal = True if self.lb_scheme.startswith("INTERNAL") else False
         self.is_external = True if self.lb_scheme.startswith("EXTERNAL") else False
@@ -305,9 +326,9 @@ class InstanceNic(GCPNetworkItem):
             self.external_ip_address = None
             if access_configs := item.get('accessConfigs'):
                 for access_config in access_configs:
-                    self.access_config_name = access_config.get('name')
-                    self.access_config_type = access_config.get('type')
-                    self.external_ip_address = access_config.get('natIP')
+                    self.access_config_name = access_config.get('name', "UNKNOWN")
+                    self.access_config_type = access_config.get('type', "UNKNOWN")
+                    self.external_ip_address = access_config.get('natIP', "UNKNOWN")
 
 
 class SSLCert(GCPNetworkItem):
@@ -367,7 +388,7 @@ class SSLCert(GCPNetworkItem):
 
 class GKECluster(GCPItem):
 
-    def __init__(self, item: dict):
+    def __init__(self, item: dict = {}):
 
         super().__init__(item)
 
@@ -378,20 +399,31 @@ class GKECluster(GCPItem):
             if private_cluster_config.get('enablePrivateEndpoint'):
                 if private_endpoint := private_cluster_config.get('privateEndpoint'):
                     self.endpoint_ips.append(private_endpoint)
-        self.network_key = "unknown/unknown"
+
+        self.network_project_id = "unknown"
+        self.network_name = "unknown"
+        if network_config := item.get('networkConfig'):
+            if network := network_config.get('network'):
+                self.network_project_id = network.split('/')[-4]
+                self.network_name = network.split('/')[-1]
+        self.network_key = f"{self.network_project_id}/{self.network_name}"
+
+
+        """
         if node_pools := item.get('nodePools'):
             if network_config := node_pools[0].get('networkConfig'):
                 if network := network_config.get('network'):
                     self.network_project_id = network.split('/')[-4]
                     self.network_name = network.split('/')[-1]
-                    self.network_key = f"{self.network_project_id}/{self.network_name}"
+        self.network_key = f"{self.network_project_id}/{self.network_name}"
+        """
         location = item.get('location', "unknown-0")
         self.region = location.split("/")[-1][:-2] if location[-2] == '-' else location
 
 
 class CloudSQL(GCPItem):
 
-    def __init__(self, item: dict):
+    def __init__(self, item: dict = {}):
 
         super().__init__(item)
 
@@ -406,21 +438,3 @@ class CloudSQL(GCPItem):
             for ip_address in item.get('ipAddresses', []):
                 _ = ip_address.get('ipAddress')
                 self.ip_addresses.append(_)
-
-
-class SecurityPolicy(GCPItem):
-
-    def __init__(self, item: dict):
-
-        super().__init__(item)
-
-        self.type = item.get('type', "UNKNOWN")
-        self.rules = []
-        for rule in item.get('rules', []):
-            self.rules.append({
-                'description': rule.get('description'),
-                'priority': rule.get('priority'),
-                'action': rule.get('action'),
-                'match': str(rule.get('match')),
-                'preview': rule.get('preview'),
-            })

@@ -7,6 +7,7 @@ from platform import system, machine, release
 from pathlib import Path
 from os import environ, makedirs, path
 from sys import version
+from openpyxl import Workbook, utils
 
 ENCODING = 'utf-8'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
@@ -28,11 +29,9 @@ def get_home_dir() -> str:
 
 async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row: int = 1):
 
-    import openpyxl
-
     output_file = f"{get_home_dir()}{file_name}"
 
-    wb = openpyxl.Workbook()
+    wb = Workbook()
 
     for k, v in sheets.items():
 
@@ -66,7 +65,7 @@ async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row:
                         column_widths[column_index] = column_width
 
         for i in range(num_columns):
-            ws.column_dimensions[openpyxl.utils.get_column_letter(i + 1)].width = column_widths[i] + 1
+            ws.column_dimensions[utils.get_column_letter(i + 1)].width = column_widths[i] + 1
 
     # Save the file
     del wb['Sheet']
@@ -79,22 +78,25 @@ async def read_data_file(file_name: str, file_format: str = None) -> dict:
     if not file_format:
         file_format = file_name.split('.')[-1].lower()
 
-    if path := Path(file_name):
-        if path.is_file():
-            if path.stat().st_size == 0:
-                return {}  # File exists, but is empty
-            with open(file_name, mode="rb") as fp:
-                if file_format == 'yaml':
+    if p := Path(file_name):
+        if not p.is_file():
+            raise f"{file_name} not a valid file"
+        if p.stat().st_size == 0:
+            return {}  # File exists, but is empty
+
+        with open(file_name, mode="rb") as fp:
+            match file_format:
+                case 'yaml':
                     return yaml.load(fp, Loader=yaml.FullLoader)
-                elif file_format == 'json':
+                case 'json':
                     return json.load(fp)
-                elif file_format == 'toml':
+                case 'toml':
                     return tomli.load(fp)
-                else:
+                case _:
                     raise f"unhandled file format '{file_format}'"
 
 
-async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> dict:
+async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
 
     sub_dir = file_name.split('/')[0]
     if not path.exists(sub_dir):
@@ -103,24 +105,25 @@ async def write_data_file(file_name: str, file_contents: any = None, file_format
     if not file_format:
         file_format = file_name.split('.')[-1].lower()
 
-    if file_format == 'yaml':
-        _ = yaml.dump(file_contents)
-    elif file_format == 'json':
-        _ = json.dumps(file_contents, indent=4)
-    elif file_format == 'toml':
-        _ = tomli_w.dumps(file_contents)
-    elif file_format == 'csv':
-        csvfile = open(file_name, 'w', newline='')
-        writer = csv.writer(csvfile)
-        writer.writerow(file_contents[0].keys())
-        [writer.writerow(row.values()) for row in file_contents]
-        csvfile.close()
-    else:
-        raise f"unhandled file format '{file_format}'"
+    match file_format:
+        case 'csv':
+            csvfile = open(file_name, 'w', newline='')
+            writer = csv.writer(csvfile)
+            writer.writerow(file_contents[0].keys())
+            [writer.writerow(row.values()) for row in file_contents]
+            csvfile.close()
+            return
+        case 'yaml':
+            _ = yaml.dump(file_contents)
+        case 'json':
+            _ = json.dumps(file_contents, indent=4)
+        case 'toml':
+            _ = tomli_w.dumps(file_contents)
+        case _:
+            raise f"unhandled file format '{file_format}'"
 
-    if file_format != 'csv':
-        with open(file_name, mode="w") as fp:
-            fp.write(_)
+    with open(file_name, mode="w") as fp:
+        fp.write(_)
 
 
 async def write_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
@@ -190,18 +193,18 @@ async def get_settings(settings_file: str = None) -> dict:
         raise e
 
 
-async def get_projects(access_token: str, sort_by: str = None) -> tuple:
-
-    sort_fields = ('name', 'id', 'number', 'create_timestamp')
+async def get_projects(access_token: str, sort_by: str = None) -> list:
 
     from gcp_operations import make_api_call
     from main import GCPProject
+
     try:
-        _ = await make_api_call('https://cloudresourcemanager.googleapis.com/v1/projects', access_token)
-        projects = [GCPProject(project) for project in _]
-        #if sort_by in sort_fields:
-            # Sort by a field defined by us
-        #    projects = sorted(list(projects), key=lambda x: x.get(sort_by), reverse=False)
+        url = "https://cloudresourcemanager.googleapis.com/v1/projects"
+        _ = await make_api_call(url, access_token)
+        print(_)
+        projects = [GCPProject(project_info) for project_info in _]
+        if sort_by in ['name', 'id', 'number', 'create_timestamp']:
+            projects = sorted(list(projects), key=lambda x: x.get(sort_by), reverse=False)
 
     except Exception as e:
         raise e

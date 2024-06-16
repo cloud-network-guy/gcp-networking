@@ -35,7 +35,7 @@ async def main():
     calls = {k: v.get('calls')[0] for k, v in _.items() if k in CALLS}
 
     # Get all network data
-    network_data = {}
+    raw_data = {}
     for k, call in calls.items():
         # Perform API calls
         urls = [f"/compute/v1/projects/{project.id}/{call}" for project in projects]
@@ -47,31 +47,35 @@ async def main():
             if len(data) > 0:
                 _ = [item for item in data]
                 items.extend(_)
-        network_data[k] = items
+        raw_data[k] = items
 
     # Create Lists of objects for any resource that could be relevant to a quota count
-    instances = [Instance(_) for _ in network_data.pop('instances')]
-    vpc_networks = [Network(_) for _ in network_data.pop('vpc_networks')]
-    subnets = [Subnet(_) for _ in network_data.pop('subnetworks')]
-    forwarding_rules = [ForwardingRule(_) for _ in network_data.pop('forwarding_rules')]
-    cloud_routers = [CloudRouter(_) for _ in network_data.pop('cloud_routers')]
-    firewall_rules = [FirewallRule(_) for _ in network_data.pop('firewall_rules')]
+    network_data = {
+        'instances': [Instance(_) for _ in raw_data.pop('instances')],
+        'vpc_networks': [Network(_) for _ in raw_data.pop('vpc_networks')],
+        'subnets': [Subnet(_) for _ in raw_data.pop('subnetworks')],
+        'forwarding_rules': [ForwardingRule(_) for _ in raw_data.pop('forwarding_rules')],
+        'cloud_routers': [CloudRouter(_) for _ in raw_data.pop('cloud_routers')],
+        'firewall_rules': [FirewallRule(_) for _ in raw_data.pop('firewall_rules')],
+    }
+    del raw_data
 
     # Use the instances list to form list of all instance NICs
-    instance_nics = []
-    for instance in instances:
-        instance_nics.extend(instance.nics)
-    del instances
+    _ = []
+    for instance in network_data['instances']:
+        _.extend(instance.nics)
+    network_data['instance_nics'] = _
+    del network_data['instances']
 
     network_counts = []
-    for vpc_network in vpc_networks:
+    for vpc_network in network_data['vpc_networks']:
         network_key = vpc_network.key
         counts = {
             'peerings': vpc_network.peerings,
-            'instances': [_ for _ in instance_nics if _.network_key == network_key],
-            'forwarding_rules': [_ for _ in forwarding_rules if _.network_key == network_key and _.is_internal],
-            'firewall_rules': [_ for _ in firewall_rules if _.network_key == network_key],
-            'cloud_routers':  [_ for _ in cloud_routers if _.network_key == network_key],
+            'instances': [_ for _ in network_data['instance_nics'] if _.network_key == network_key],
+            'forwarding_rules': [_ for _ in network_data['forwarding_rules'] if _.network_key == network_key and _.is_internal],
+            'firewall_rules': [_ for _ in network_data['firewall_rules'] if _.network_key == network_key],
+            'cloud_routers':  [_ for _ in network_data['cloud_routers'] if _.network_key == network_key],
         }
         application_ilbs = [_ for _ in counts['forwarding_rules'] if _.is_internal and _.is_managed]
         passthrough_ilbs = [_ for _ in counts['forwarding_rules'] if _.is_internal and not _.is_managed]
@@ -89,11 +93,11 @@ async def main():
     sheets['networks']['data'] = sort_data(network_counts, 'num_instances')
 
     subnet_counts = []
-    for subnet in subnets:
+    for subnet in network_data['subnets']:
         subnet_key = subnet.key
         counts = {
-            'instances': [_ for _ in instance_nics if _.subnet_key == subnet_key],
-            'forwarding_rules': [_ for _ in forwarding_rules if _.subnet_key == subnet_key],
+            'instances': [_ for _ in network_data['instance_nics'] if _.subnet_key == subnet_key],
+            'forwarding_rules': [_ for _ in network_data['forwarding_rules'] if _.subnet_key == subnet_key],
         }
         active_ips = len(counts['instances']) + len(counts['forwarding_rules'])
         subnet_counts.append({
@@ -112,8 +116,8 @@ async def main():
         project_id = project.id
         counts = {
             'networks': [_ for _ in network_counts if _['project_id'] == project_id],
-            'firewall_rules': [_ for _ in firewall_rules if _.project_id == project_id],
-            'cloud_routers': [_ for _ in cloud_routers if _.project_id == project_id],
+            'firewall_rules': [_ for _ in network_data['firewall_rules'] if _.project_id == project_id],
+            'cloud_routers': [_ for _ in network_data['cloud_routers'] if _.project_id == project_id],
         }
         project_counts.append({
             'id': project_id,
@@ -129,7 +133,7 @@ async def main():
     cloud_nat_counts = []
     for network in network_counts:
         network_key = network['key']
-        _ = Counter([nic.region for nic in instance_nics if nic.network_key == network_key])
+        _ = Counter([nic.region for nic in network_data['instance_nics'] if nic.network_key == network_key])
         for region, instance_count in _.items():
             cloud_nat_counts.append({
                 'network_key': network['key'],

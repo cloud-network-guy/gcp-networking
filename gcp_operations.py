@@ -8,10 +8,12 @@ PROJECT_FIELDS = {
     'id': "projectId",
     'number': "projectNumber",
     'created': "createTime",
-    'status': "lifecycleState"
+    'status': "lifecycleState",
+    'labels': "labels",
 }
 
 
+"""
 async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
 
     call = call[1:] if call.startswith("/") else call
@@ -57,21 +59,24 @@ async def make_gcp_call(call: str, access_token: str, api_name: str) -> dict:
         await session.close()
 
     return results
+    
+"""
 
 
 async def parse_project(project: dict) -> dict:
 
-    return {k: project.get(v, "UNKNOWN") for k, v in PROJECT_FIELDS.items()}
-    #yield {k: project.get(v, "UNKNOWN") for k, v in PROJECT_FIELDS.items()}
+    _ = {k: project.get(v, "UNKNOWN") for k, v in PROJECT_FIELDS.items()}
+    if parent := project.get('parent'):
+        if folder := parent.get('folder'):
+            _.update({'parent_folder_id': folder.get('id', "UNKNOWN")})
+    return _
 
 
 async def get_project_details(project_id: str, access_token: str) -> dict:
 
     try:
         url = f"https://cloudresourcemanager.googleapis.com/v1/projects/{project_id}"
-        #print("making api all", url)
         _ = await make_api_call(url, access_token)
-        #print(_)
         _ = await parse_project(_[0]) if len(_) == 1 else {}
         return _
     except Exception as e:
@@ -82,14 +87,13 @@ async def get_projects(access_token: str, sort_by: str = None) -> tuple:
 
     projects = []
     try:
-        _ = await make_api_call('https://cloudresourcemanager.googleapis.com/v1/projects', access_token)
+        url = "https://cloudresourcemanager.googleapis.com/v1/projects"
+        _ = await make_api_call(url, access_token)
         if sort_by in PROJECT_FIELDS.values():
             # Sort by a field defined in the API
             _ = sorted(list(_), key=lambda x: x.get(sort_by), reverse=False)
-        #return tuple(_)
         tasks = (parse_project(project) for project in _)
         projects = await gather(*tasks)
-        #projects = [Project(project) for project in _]
         if sort_by in PROJECT_FIELDS.keys():
             # Sort by a field defined by us
             projects = sorted(list(projects), key=lambda x: x.get(sort_by), reverse=False)
@@ -100,6 +104,7 @@ async def get_projects(access_token: str, sort_by: str = None) -> tuple:
     return tuple(projects)
 
 
+"""
 async def get_project_ids(access_token: str, projects: list = None) -> tuple:
 
     try:
@@ -109,6 +114,7 @@ async def get_project_ids(access_token: str, projects: list = None) -> tuple:
         raise e
 
     return tuple(project_ids)
+"""
 
 
 async def make_api_call(url: str, access_token: str, session: ClientSession = None) -> tuple:
@@ -139,12 +145,12 @@ async def make_api_call(url: str, access_token: str, session: ClientSession = No
     else:
         items_key = url.split("/")[-1]
 
+    results = []
     try:
         headers = {'Authorization': f"Bearer {access_token}"}
         params = {}  # Query string parameters to include in the request
         if not session:
             session = ClientSession(raise_for_status=True)
-        results = []
         while True:
             async with session.get(url, headers=headers, params=params, verify_ssl=VERIFY_SSL) as response:
                 if int(response.status) == 200:
@@ -174,11 +180,7 @@ async def make_api_call(url: str, access_token: str, session: ClientSession = No
     except Exception as e:
         await session.close()    # Something went wrong when opening the session; don't leave it hanging
 
-    #if len(results) > 0:
-
     return tuple(results)
-    #else:
-    #    StopAsyncIteration
 
 
 async def get_api_data(urls: list, access_token: str, session: ClientSession = None) -> tuple:

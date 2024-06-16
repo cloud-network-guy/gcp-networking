@@ -1,8 +1,9 @@
 #!/usr/bin/env python3 
 
 from asyncio import run, gather
-from utils import get_adc_token, read_service_account_key, write_data_file, get_settings, get_calls, get_projects
-from gcp_operations import get_project_ids, make_gcp_call
+from utils import *
+#get_adc_token, read_service_account_key, write_data_file, get_settings, get_calls, get_projects
+#from gcp_operations import get_project_ids, make_gcp_call
 
 
 async def main():

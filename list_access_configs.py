@@ -28,7 +28,7 @@ async def main():
     for instance in sorted(instances, key=lambda x: x.name):  # Sort by name
         for nic in instance.nics:
             if nic.external_ip_address:
-                print(instance.name, nic.access_config_name)
+                print(instance.project_id, instance.region, instance.name, nic.access_config_name)
 
 if __name__ == "__main__":
 
