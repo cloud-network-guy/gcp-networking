@@ -57,7 +57,7 @@ class GCPItem:
             self.project_id = _.split('/')[-4 if self.region == 'global' else -5]
         elif _ := item.get('id'):
             self.id = _
-            self.project_id = id.split('/')[1]
+            self.project_id = _.split('/')[1]
         else:
             self.id = ""
             self.project_id = "unknown"
