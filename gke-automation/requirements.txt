@@ -1,0 +1,7 @@
+aiohttp
+pyyaml
+google-auth
+oauthlib
+requests
+flask
+gunicorn
