@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>GKE Allocation Table</title>
+<meta charset="utf-8" />
+<meta name="description" content="A" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="index, follow, archive, noimageindex">
+<meta http-equiv="Cache-Control" content="no-cache"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0" />
+<style>
+table   { width: 100%; border-spacing: 2px; border-collapse: collapse; border: 1px solid black; }
+p,th,td { font-family: arial; text-align: left; font-size: 10px; border: 1px solid black; padding: 4px; }
+tr.even td { background-color: #f8f8f8; }
+tr.odd td { background-color:#dfdfdf; }
+</style>
+</head>
+<body>
+<form id="selector" method="GET" action="">
+    <fieldset>
+        <legend>Network:</legend>
+        <select name="network" id="network">
+            <option value="">All Networks</option>
+            {% for n in data.networks %}
+            <option value="{{n.name}}"{% if n.name == selected.network %} selected{% endif %}>{{n.name}}</option>
+            {% endfor %}
+        </select>
+    </fieldset>
+    <fieldset>
+        <legend>Region:</legend>
+        <select name="region" id="region">
+            <option value="">All Regions</option>
+            {% for r in regions %}
+            <option value="{{r}}"{% if r == selected.region %} selected{% endif %}>{{r}}</option>
+            {% endfor %}
+        </select>
+    </fieldset>
+    <fieldset>
+        <legend>Subnet:</legend>
+        <select name="subnet" id="subnet">
+            <option value="">All Subnets</option>
+            {% for s in data.subnets %}
+            <option value="{{s.name}}"{% if s.name == selected.subnet %} selected{% endif %}>{{s.name}}</option>
+            {% endfor %}
+        </select>
+    </fieldset>
+  <input type=submit>
+  <input type=reset>
+</form>
+<table style="width:100%" border="1">
+  <tr>
+      <th>Network</th>
+      <th>Region</th>
+      <th>Subnet</th>
+      <th>Range</th>
+      <th>GKE Cluster</th>
+      <th>Control Plane Range</th>
+  </tr>
+{% for subnet in data.subnets %}
+  <tr>
+    {% for secondary_range in subnet.secondary_ranges %}
+    {%if loop.index is divisibleby 2 %}
+      <tr class="even">
+    {% else %}
+      <tr class="odd">
+    {% endif %}
+      <td>{{subnet.network}}</td>
+      <td>{{subnet.region}}</td>
+      <td>{{subnet.name}}</td>
+      <td>{{secondary_range.name}}</td>
+      <td>{{secondary_range.gke_cluster}}</td>
+      <td>{{secondary_range.master_range}}</td>
+    </tr>
+    {% endfor %}
+{% endfor %}
+</table>
+</body>
+</html>

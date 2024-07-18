@@ -6,6 +6,7 @@ from google.oauth2 import service_account
 from pathlib import Path
 from pprint import pprint
 from platform import system
+from time import time
 import google.auth
 import google.auth.transport.requests
 import google.oauth2
@@ -55,7 +56,12 @@ async def get_api_data(url: str, access_token: str, params: dict = None) -> list
         api_name = "unknown"
 
     if api_name in ['compute']:
-        items_key = 'items' if 'aggregated' in url or 'global' in url else 'result'
+        if 'aggregated/' in url or 'global/' in url:
+            items_key = 'items'
+        elif 'regions/' in url:
+            items_key = 'result'
+        else:
+            items_key = 'resources'
     else:
         items_key = url.split("/")[-1]
 
@@ -99,37 +105,64 @@ async def get_api_data(url: str, access_token: str, params: dict = None) -> list
 
 async def get_projects(access_token: str) -> list:
 
-    projects = []
-
     try:
         url = "https://cloudresourcemanager.googleapis.com/v1/projects"
         params = {'filter': "lifecycleState: ACTIVE"}
         data = await get_api_data(url, access_token, params)
+        projects = []
         for item in data:
-            _ = {
+            project = {
                 'name': item.get('name'),
                 'id': item.get('projectId'),
                 'number': item.get('projectNumber'),
             }
-            projects.append(_)
+            projects.append(project)
         return projects
 
     except Exception as e:
         raise e
 
 
-async def get_vpc_networks(project_id: str, access_token: str) -> list:
+async def get_shared_vpc_service_projects(host_project_id: str, access_token: str) -> list:
 
-    vpc_networks = []
+    try:
+        url = f"{COMPUTE_API_BASE}/projects/{host_project_id}/getXpnResources"
+        data = await get_api_data(url, access_token)
+        #print(data)
+        return [p['id'] for p in data if p.get('type') == "PROJECT"]
+
+    except Exception as e:
+        raise e
+
+
+async def get_networks(project_id: str, access_token: str) -> list:
+
+    networks = []
 
     try:
         url = f"{COMPUTE_API_BASE}/projects/{project_id}/global/networks"
         data = await get_api_data(url, access_token)
         for item in data:
-            _ = {k: item.get(k) for k in ('name', 'subnetworks')}
-            vpc_networks.append(_)
-        return vpc_networks
-
+            network = {
+                'project_id:': project_id,
+                'name': item['name'],
+                'id': item['selfLink'].replace(f"{COMPUTE_API_BASE}/", ""),
+            }
+            subnets = []
+            for s in item.get('subnetworks', []):
+                _ = s.split('/')
+                region = _[-3]
+                name = _[-1]
+                subnet = {
+                    'project_id': project_id,
+                    'region': region,
+                    'name': name,
+                    'id': s.replace(f"{COMPUTE_API_BASE}/", ""),
+                }
+                subnets.append(subnet)
+            network.update({'subnets': subnets})
+            networks.append(network)
+        return networks
     except Exception as e:
         raise e
 
@@ -144,14 +177,26 @@ async def get_subnets(project_id: str, access_token: str, regions: list = None) 
         for item in data:
             if item['purpose'] != "PRIVATE":
                 continue
-            _ = {k: item.get(k) for k in ('name', 'selfLink')}
-            _.update({'region': item['region'].split("/")[-1]})
-            _.update({
-                'secondary_ranges': [rn['rangeName'] for rn in item.get('secondaryIpRanges', [])],
-            })
+            region = item['region'].split("/")[-1]
+            name = item['name']
+            ranges = []
+            for r in item.get('secondaryIpRanges', []):
+                ranges.append({
+                    'name': r.get('rangeName'),
+                    'cidr': r.get('ipCidrRange'),
+                    'gke_cluster': None,
+                })
+            subnet = {
+                'project_id': project_id,
+                'region': region,
+                'name': name,
+                'id': f"projects/{project_id}/regions/{region}/subnetworks/{name}",
+                'secondary_ranges': ranges,
+            }
+            # Filter down to specific regions, if desired
             if regions:
                 subnets = [subnet for subnet in subnets if subnet['region'] in regions]
-            subnets.append(_)
+            subnets.append(subnet)
         return subnets
     except Exception as e:
         raise e
@@ -164,30 +209,41 @@ async def get_gke_clusters(project_id: str, access_token: str) -> list:
     try:
         url = f"https://container.googleapis.com/v1/projects/{project_id}/locations/-/clusters"
         data = await get_api_data(url, access_token)
-        print(data)
+        #print(data)
         for item in data:
-            _ = {k: item.get(k) for k in ('name', 'currentMasterVersion', 'currentNodeVersion')}
             region = "unknown"
             if location := item.get('location'):
                 region = location[0:-2] if location[-2:-1] == "-" else location
+            network = "N/A"
+            network_project_id = project_id
+            subnet = "N/A"
             master_range = "N/A"
-            network_config = item.get('networkConfig')
+            if network_config := item.get('networkConfig'):
+                network = network_config.get('network', 'UNKNOWN')
+                network_project_id = network.split('/')[-4]
+                subnet = network_config.get('subnetwork', 'UNKNOWN')
             if private_cluster_config := item.get('privateClusterConfig'):
                 master_range = private_cluster_config.get('masterIpv4CidrBlock')
-            _.update({
+            gke_cluster = {
+                'name': item['name'],
                 'region': region,
-                'network': network_config.get('network'),
-                'subnetwork': network_config.get('subnetwork'),
+                'network': network,
+                'network_project_id': network_project_id,
+                'subnet': subnet,
                 'master_range': master_range,
-            })
+                'current_master_version': item.get('currentMasterVersion', 'UNKNOWN'),
+                'current_node_version': item.get('currentNodeVersion', "UNKNOWN"),
+            }
             if ip_allocation_policy := item.get('ipAllocationPolicy'):
-                _.update({
-                    'pods_ip_cidr': ip_allocation_policy.get('clusterIpv4Cidr'),
-                    'pods_range_name': ip_allocation_policy.get('clusterSecondaryRangeName'),
-                    'services_ip_cidr': ip_allocation_policy.get('servicesIpv4Cidr'),
-                    'services_range_name': ip_allocation_policy.get('servicesSecondaryRangeName'),
+                gke_cluster.update({
+                    'pods_range': ip_allocation_policy.get('clusterSecondaryRangeName'),
+                    'pods_cidr': ip_allocation_policy.get('clusterIpv4Cidr'),
+                    'services_range': ip_allocation_policy.get('servicesSecondaryRangeName'),
+                    'services_cidr': ip_allocation_policy.get('servicesIpv4Cidr'),
                 })
-            gke_clusters.append(_)
+            else:
+                gke_cluster.update({k: "N/A" for k in ('pods_cidr', 'pods_range', 'services_cidr', 'services_range')})
+            gke_clusters.append(gke_cluster)
         return gke_clusters
 
     except Exception as e:
@@ -196,26 +252,96 @@ async def get_gke_clusters(project_id: str, access_token: str) -> list:
 
 async def main():
 
+    splits = {'start': time()}
+
     settings = await get_settings()
-    quota_project_id = settings.get('quota_project_id')
+    if host_project_id := settings.get('host_project_id'):
+        quota_project_id = settings.get('quota_project_id', host_project_id)
+    else:
+        quit("'host_project_id' not defined in YAML file!")
     if json_key := settings.get('json_key'):
         access_token = await read_service_account_key(json_key)
     else:
         access_token = await get_adc_token(quota_project_id=quota_project_id)
 
-    projects = await get_projects(access_token=access_token)
-    #projects = [{'id': "otl-ems-netops"}]
-    host_project_id = settings.get('host_project_id', quota_project_id)
-    vpc_networks = await get_vpc_networks(project_id=host_project_id, access_token=access_token)
+    splits.update({'get_token': time()})
 
-    subnets = await get_subnets(project_id=host_project_id, access_token=access_token)
-    print(subnets)
+    projects = await get_projects(access_token=access_token)
+    splits.update({'get_projects': time()})
+
+    _ = await get_shared_vpc_service_projects(host_project_id=host_project_id, access_token=access_token)
+    # Filter complete projects list down to ones that are Shared VPC service projects
+    projects = [project for project in projects if project['id'] in _]
+    splits.update({'get_service_projects': time()})
+
+
+    #print(projects)
+    networks = await get_networks(project_id=host_project_id, access_token=access_token)
+    splits.update({'get_networks': time()})
+
+    #print(vpc_networks)
+
+    _subnets = await get_subnets(project_id=host_project_id, access_token=access_token)
+    splits.update({'get_subnets': time()})
+
+    # Match each subnet to a network
+    subnets = []
+    for subnet in _subnets:
+        for network in networks:
+            for s in network['subnets']:
+                if s['id'] == subnet['id']:
+                    subnet.update({'network': network['name']})
+                    break
+        subnets.append(subnet)
+    splits.update({'match_subnets_to_networks': time()})
+
+    #print(subnets)
     tasks = [get_gke_clusters(project['id'], access_token) for project in projects]
-    results = await gather(*tasks)
-    gke_clusters = [_ for _ in results if _]
-    return gke_clusters
+    _gke_clusters = await gather(*tasks)
+
+    gke_clusters = []
+    for _ in _gke_clusters:
+        if isinstance(_, dict):
+            gke_clusters.append(_)
+        if isinstance(_, list):
+            for gke_cluster in _:
+                gke_clusters.append(gke_cluster)
+        #print(_)
+    #gke_clusters = [_ for _ in results if _ != []]
+    splits.update({'get_gke_clusters': time()})
+
+    # Populate subnet secondary ranges with GKE services
+    for gke_cluster in gke_clusters:
+        for subnet in subnets:
+            if gke_cluster['subnet'] == subnet['id']:
+                for i, r in enumerate(subnet['secondary_ranges']):
+                    if r['name'] == gke_cluster['services_range']:
+                        subnet['secondary_ranges'][i].update({
+                            'gke_cluster': gke_cluster['name'],
+                            'master_range': gke_cluster['master_range'],
+                        })
+                subnets = [subnet if _['id'] == subnet['id'] else _ for _ in subnets]
+                break
+    splits.update({'match_clusters_to_ranges': time()})
+
+    start = splits.pop('start')
+    last_split = start
+    for key, timestamp in splits.items():
+        duration = round((splits[key] - last_split), 3)
+        splits.update({key: f"{duration:.3f}"})
+        last_split = timestamp
+    splits.update({'total': f"{round(last_split - start, 3):.3f}"})
+
+    return {
+        'projects': projects,
+        'networks': networks,
+        'subnets': subnets,
+        'gke_clusters': gke_clusters,
+        'splits': splits,
+    }
 
 
 if __name__ == "__main__":
-    run(main())
 
+    _ = run(main())
+    pprint(_['gke_clusters'])
