@@ -1,0 +1,7 @@
+aiohttp==3.10.5
+google-auth==2.35.0
+hypercorn==0.17.3
+oauthlib==3.2.2
+quart==0.19.6
+requests==2.32.0
+tomli==2.0.1
