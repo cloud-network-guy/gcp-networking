@@ -1,4 +1,5 @@
-FROM python:3.12-alpine
+FROM python:3.12.5-slim-bookworm
+#FROM python:3.12-alpine
 WORKDIR /tmp
 COPY ./requirements.txt ./
 RUN pip install --upgrade pip
@@ -11,5 +12,6 @@ COPY *.toml $APP_DIR
 COPY settings.yaml $APP_DIR
 COPY static/ $APP_DIR/static/
 ENTRYPOINT cd $APP_DIR && hypercorn -b 0.0.0.0:$PORT -w 1 --access-logfile '-' $APP_APP
+#ENTRYPOINT ["pip", "list"]
 EXPOSE $PORT
 
