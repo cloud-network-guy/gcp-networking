@@ -2,9 +2,10 @@
 
 from asyncio import run, gather
 from collections import Counter
-from utils import write_to_excel, get_adc_token, get_calls, get_projects
-from gcp_operations import make_api_call
-from main import *
+from aiohttp import ClientSession
+from file_utils import get_settings, write_to_excel, get_calls
+from gcp_utils import get_access_token, get_projects, get_api_data
+from gcp_classes import *
 
 CALLS = ('vpc_networks', 'firewall_rules', 'subnetworks', 'instances', 'forwarding_rules', 'cloud_routers')
 XLSX_FILE = "network_quotas.xlsx"
@@ -18,10 +19,12 @@ def sort_data(data: list, key: str, reverse: bool = True) -> list:
 async def main():
 
     try:
-        access_token = await get_adc_token()
-        projects = await get_projects(access_token)
+        settings = await get_settings()
+        access_token = await get_access_token(settings.get('key_file'))
     except Exception as e:
         quit(e)
+
+    projects = await get_projects(access_token)
 
     sheets = {
         'projects': {'description': "Project Counts"},
@@ -36,10 +39,12 @@ async def main():
 
     # Get all network data
     raw_data = {}
+    session = ClientSession(raise_for_status=False)
     for k, call in calls.items():
         # Perform API calls
         urls = [f"/compute/v1/projects/{project.id}/{call}" for project in projects]
-        tasks = [make_api_call(url, access_token) for url in urls]
+        #tasks = [make_api_call(url, access_token) for url in urls]
+        tasks = [get_api_data(session, url, access_token) for url in urls]
         results = await gather(*tasks)
         results = dict(zip(urls, results))
         items = []
@@ -48,6 +53,7 @@ async def main():
                 _ = [item for item in data]
                 items.extend(_)
         raw_data[k] = items
+    await session.close()
 
     # Create Lists of objects for any resource that could be relevant to a quota count
     network_data = {
@@ -122,7 +128,7 @@ async def main():
         project_counts.append({
             'id': project_id,
             'number': project.number,
-            'create_str': project.create_str,
+            'creation': project.creation,
             'state': project.state,
             'num_vpc_networks': len(counts['networks']),
             'num_firewall_rules': len(counts['firewall_rules']),

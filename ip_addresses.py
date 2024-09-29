@@ -1,10 +1,11 @@
 #!/usr/bin/env python3 
 
-
-from gcp_operations import make_api_call
-from utils import get_adc_token, get_projects, get_calls, write_to_excel
+from ipaddress import IPv4Address
 from asyncio import run, gather
-from main import *
+from aiohttp import ClientSession
+from file_utils import get_settings, write_to_excel, get_calls
+from gcp_utils import get_access_token, get_projects, get_api_data
+from gcp_classes import Instance, ForwardingRule, CloudRouter, GKECluster, CloudSQL
 
 CALLS = ('instances', 'forwarding_rules', 'cloud_routers', 'gke_clusters')
 COLUMNS = ('ip_address', 'type', 'project_id', 'region', 'name', 'network_key')
@@ -14,22 +15,26 @@ XLSX_FILE = "ip_addresses.xlsx"
 
 
 async def main():
+    
     try:
-        access_token = await get_adc_token()
-        projects = await get_projects(access_token)
+        settings = await get_settings()
+        access_token = await get_access_token(settings.get('key_file'))
     except Exception as e:
         quit(e)
 
+    projects = await get_projects(access_token)
     calls = await get_calls()
 
     print("Gathering IP addresses across", len(projects), "projects...")
 
     ip_addresses = []
 
+    session = ClientSession(raise_for_status=False)
+
     print("Getting GCE Instance IPs...")
     call = calls.get('instances').get('calls')[0]
     urls = [f"/compute/v1/projects/{project.id}/{call}" for project in projects]
-    tasks = [make_api_call(url, access_token) for url in urls]
+    tasks = [get_api_data(session, url, access_token) for url in urls]
     results = await gather(*tasks)
     _ = [item for items in results for item in items]  # Flatten results
     instances = [Instance(_) for _ in _]
@@ -56,7 +61,7 @@ async def main():
     _ = calls.get('forwarding_rules').get('calls')
     for call in _:
         urls.extend([f"/compute/v1/projects/{project.id}/{call}" for project in projects])
-    tasks = [make_api_call(url, access_token) for url in urls]
+    tasks = [get_api_data(session, url, access_token) for url in urls]
     results = await gather(*tasks)
     _ = [item for items in results for item in items]  # Flatten results
     forwarding_rules = [ForwardingRule(_) for _ in _]
@@ -73,7 +78,7 @@ async def main():
     _ = calls.get('cloud_routers').get('calls')
     for call in _:
         urls.extend([f"/compute/v1/projects/{project.id}/{call}" for project in projects])
-    tasks = [make_api_call(url, access_token) for url in urls]
+    tasks = [get_api_data(session, url, access_token) for url in urls]
     results = await gather(*tasks)
     _ = [item for items in results for item in items]  # Flatten results
     cloud_routers = [CloudRouter(_) for _ in _]
@@ -83,9 +88,10 @@ async def main():
         if len(router.cloud_nats) == 0:
             continue
         project_id = router.project_id
-        call = f"/compute/v1/projects/{project_id}/regions/{router.region}/routers/{router.name}/getRouterStatus"
+        url = f"/compute/v1/projects/{project_id}/regions/{router.region}/routers/{router.name}/getRouterStatus"
         try:
-            _ = await make_api_call(call, access_token)
+            #_ = await make_api_call(call, access_token)
+            _ = await get_api_data(session, url, access_token)
         except:
             continue
         for router_status in _:
@@ -104,7 +110,7 @@ async def main():
 
     print("Getting GKE Endpoints...")
     urls = [f"/v1/projects/{project.id}/locations/-/clusters" for project in projects]
-    tasks = [make_api_call(url, access_token) for url in urls]
+    tasks = [get_api_data(session, url, access_token) for url in urls]
     results = await gather(*tasks)
     _ = [item for items in results for item in items]  # Flatten results
     gke_clusters = [GKECluster(_) for _ in _]
@@ -119,10 +125,12 @@ async def main():
 
     print("Getting Cloud SQL Instances...")
     urls = [f"https://sqladmin.googleapis.com/v1/projects/{project.id}/instances" for project in projects]
-    tasks = [make_api_call(url, access_token) for url in urls]
+    tasks = [get_api_data(session, url, access_token) for url in urls]
     results = await gather(*tasks)
     _ = [item for items in results for item in items]  # Flatten results
     cloud_sqls = [CloudSQL(_) for _ in _]
+
+    await session.close()
 
     for cloud_sql in cloud_sqls:
         for ip_address in cloud_sql.ip_addresses:
@@ -133,6 +141,7 @@ async def main():
             })
             ip_addresses.append(_)
 
+    ip_addresses = sorted(ip_addresses, key=lambda x: IPv4Address(x.get(SORT_COLUMN, "UNKNOWN")), reverse=False)
     return ip_addresses
 
 
@@ -143,7 +152,7 @@ if __name__ == "__main__":
     for row in _:
         data.append({k: row[k] for k in COLUMNS if row.get(k) is not None})
     del _
-    data = sorted(data, key=lambda x: x.get(SORT_COLUMN, "UNKNOWN"), reverse=False)
+    #data = sorted(data, key=lambda x: x.get(SORT_COLUMN, "UNKNOWN"), reverse=False)
     sheets = {
         'ip_addresses': {'description': "IP Addresses", 'data': data},
     }

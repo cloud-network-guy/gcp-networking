@@ -6,19 +6,19 @@ from time import time
 
 class GCPProject:
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         self.id = item.get('projectId')
         self.name = item.get('name')
         self.number = int(item.get('projectNumber', 000000000))
         self.state = item.get('lifecycleState', "UNKNOWN")
-        #self.labels = item.get('labels', {})
+        self.labels = item.get('labels', {})
         if create_time := item.get('createTime'):
             date_time = f"{create_time[:10]} {create_time[11:19]}"
             self.create_timestamp = int(datetime.timestamp(datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")))
         else:
             self.create_timestamp = 0
-        self.create_str = str(datetime.fromtimestamp(self.create_timestamp))  # Convert to human-readable string
+        self.creation = str(datetime.fromtimestamp(self.create_timestamp))  
 
         parent_folder_id = None
         if parent := item.get('parent'):
@@ -44,6 +44,9 @@ class GCPItem:
             self.creation_timestamp = int(datetime.timestamp(datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")))
         else:
             self.creation_timestamp = 0
+        # Convert to human-readable string
+        self.creation = str(datetime.fromtimestamp(self.creation_timestamp))  
+
 
         if _ := item.get('zone'):
             self.zone = _.split('/')[-1]
@@ -438,3 +441,21 @@ class CloudSQL(GCPItem):
             for ip_address in item.get('ipAddresses', []):
                 _ = ip_address.get('ipAddress')
                 self.ip_addresses.append(_)
+
+
+class SecurityPolicy(GCPNetworkItem):
+
+    def __init__(self, item: dict = {}):
+
+        super().__init__(item)
+
+        self.rules = []
+
+        for rule in item.get('rules'):
+            self.rules.append({
+                'description': rule.get('description', ""),
+                'priority': int(rule.get('priority', 0)),
+                'action': rule.get('action'),
+                'preview': rule.get('preview', False),
+                'match': rule.get('match', {}),
+            })

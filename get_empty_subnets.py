@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
 from asyncio import run, gather
-from utils import write_to_excel, get_adc_token, get_calls, get_projects
-from gcp_operations import make_api_call
-from main import *
+from aiohttp import ClientSession
+from file_utils import get_settings, write_to_excel, get_calls
+from gcp_utils import get_access_token, get_projects, get_api_data
+from gcp_classes import Subnet, Instance, ForwardingRule
+
 
 CALLS = ('vpc_networks', 'subnetworks', 'instances', 'forwarding_rules')
 XLSX_FILE = "empty_subnets.xlsx"
@@ -17,23 +19,26 @@ def sort_data(data: list, key: str, reverse: bool = True) -> list:
 async def main():
 
     try:
-        access_token = await get_adc_token()
-        projects = await get_projects(access_token)
+        settings = await get_settings()
+        access_token = await get_access_token(settings.get('key_file'))
     except Exception as e:
         quit(e)
+
+    projects = await get_projects(access_token)
 
     # Form a dictionary of relevant API Calls
     _ = await get_calls()
     calls = {k: v.get('calls')[0] for k, v in _.items() if k in CALLS}
 
     print("Gathering Network Data...")
+    session = ClientSession(raise_for_status=False)
 
     # Get all network data
     raw_data = {}
     for k, call in calls.items():
         # Perform API calls
         urls = [f"/compute/v1/projects/{project.id}/{call}" for project in projects]
-        tasks = [make_api_call(url, access_token) for url in urls]
+        tasks = [get_api_data(session, url, access_token) for url in urls]
         results = await gather(*tasks)
         results = dict(zip(urls, results))
         items = []
@@ -42,8 +47,7 @@ async def main():
                 _ = [item for item in data]
                 items.extend(_)
         raw_data[k] = items
-
-    #print(network_data)
+    await session.close()
 
     print("Organizing Network Data...")
 

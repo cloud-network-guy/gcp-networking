@@ -1,26 +1,28 @@
+import sys
 import json
 import yaml
 import tomli
 import tomli_w
 import csv
+import os
+import platform
+import pathlib
 
 ENCODING = 'utf-8'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 SETTINGS_FILE = 'settings.yaml'
+PROFILES_FILE = 'profiles.toml'
 CALLS_FILE = 'calls.toml'
 
 
 def get_home_dir() -> str:
 
-    from platform import system
-    from os import environ
-
-    if my_os := system().lower():
+    if my_os := platform.system().lower():
         if my_os.startswith("win"):
-            home_dir = environ.get("USERPROFILE")
+            home_dir = os.environ.get("USERPROFILE")
             separator = "\\Documents\\"
         else:
-            home_dir = environ.get("HOME")
+            home_dir = os.environ.get("HOME")
             separator = "/Documents/" if my_os.startswith("darwin") else "/"
         return home_dir + separator
 
@@ -75,39 +77,43 @@ async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row:
 
 async def read_data_file(file_name: str, file_format: str = None) -> dict:
 
-    from pathlib import Path
-
-    if not file_format:
-        file_format = file_name.split('.')[-1].lower()
-
-    if p := Path(file_name):
+    if p := pathlib.Path(file_name):
         if not p.is_file():
             raise f"{file_name} not a valid file"
         if p.stat().st_size == 0:
             return {}  # File exists, but is empty
+    else:
+        raise f"Error occurred while reading '{file_name}'"
 
-        with open(file_name, mode="rb") as fp:
-            match file_format:
-                case 'yaml':
-                    return yaml.load(fp, Loader=yaml.FullLoader)
-                case 'json':
-                    return json.load(fp)
-                case 'toml':
-                    return tomli.load(fp)
-                case _:
-                    raise f"unhandled file format '{file_format}'"
+    if not file_format:
+        file_format = p.suffix.replace('.', '').lower()
+
+    with open(file_name, mode="rb") as fp:
+        match file_format:
+            case 'yaml':
+                return yaml.load(fp, Loader=yaml.FullLoader)
+            case 'json':
+                return json.load(fp)
+            case 'toml':
+                return tomli.load(fp)
+            case _:
+                raise f"unhandled file format '{file_format}'"
 
 
 async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
 
-    from os import path, makedirs
-
+    """
     sub_dir = file_name.split('/')[0]
-    if not path.exists(sub_dir):
-        makedirs(sub_dir)
+    if not os.path.exists(sub_dir):
+        os.makedirs(sub_dir)
 
     if not file_format:
         file_format = file_name.split('.')[-1].lower()
+    """
+
+    p = pathlib.Path(file_name)
+    if not file_format:
+        file_format = p.suffix.replace('.', '').lower()
 
     match file_format:
         case 'csv':
@@ -132,13 +138,12 @@ async def write_data_file(file_name: str, file_contents: any = None, file_format
 
 async def write_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
 
-    from os import path, makedirs
     import aiofiles
 
     if '/' in file_name:
         sub_dir = file_name.split('/')[0]
-        if not path.exists(sub_dir):
-            makedirs(sub_dir)
+        if not os.path.exists(sub_dir):
+            os.makedirs(sub_dir)
 
     file_contents = "" if not file_contents else file_contents
     if isinstance(file_contents, bytes):
@@ -147,100 +152,42 @@ async def write_file(file_name: str, file_contents: any = None, file_format: str
         await fp.write(file_contents)
 
 
-async def get_adc_token(quota_project_id: str = None):
-
-    from google.auth import default
-    from google.auth.transport.requests import Request
-
-    try:
-        credentials, project_id = default(scopes=SCOPES, quota_project_id=quota_project_id)
-        _ = Request()
-        credentials.refresh(_)
-        return credentials.token  # return access token
-    except Exception as e:
-        raise e
+async def get_settings(settings_file: str = SETTINGS_FILE) -> dict:
+    """
+    Get all settings from settings file
+    """
+    _ = await read_data_file(settings_file)
+    return _
 
 
-async def read_service_account_key(file: str) -> dict:
-
-    from platform import system
-    from google.oauth2 import service_account
-    from google.auth.transport.requests import Request
-
-    # If running on Windows, change forward slashes to backslashes
-    if system().lower().startswith("win"):
-        file = file.replace("/", "\\")
-
-    try:
-        with open(file, 'r') as f:
-            _ = json.load(f)
-            project_id = _.get('project_id')
-    except Exception as e:
-        raise e
-
-    try:
-        credentials = service_account.Credentials.from_service_account_file(file, scopes=SCOPES)
-        _ = Request()
-        credentials.refresh(_)
-        return {'project_id': project_id, 'access_token': credentials.token}
-    except Exception as e:
-        raise e
+async def get_calls(calls_file: str = CALLS_FILE) -> dict:
+    """
+    Get all calls from the calls file
+    """
+    _ = await read_data_file(calls_file)
+    return _
 
 
-async def get_settings(settings_file: str = None) -> dict:
-
-    try:
-        settings_file = settings_file if settings_file else SETTINGS_FILE
-        if settings := await read_data_file(settings_file):
-            return settings
-        else:
-            raise f"Could not read settings file: '{settings_file}'"
-    except Exception as e:
-        raise e
-
-
-async def get_projects(access_token: str, sort_by: str = None) -> list:
-
-    from gcp_operations import make_api_call
-    from main import GCPProject
-
-    try:
-        url = "https://cloudresourcemanager.googleapis.com/v1/projects"
-        _ = await make_api_call(url, access_token)
-        #print(_)
-        projects = [GCPProject(project_info) for project_info in _]
-        if sort_by in ['name', 'id', 'number', 'create_timestamp']:
-            projects = sorted(list(projects), key=lambda x: x.get(sort_by), reverse=False)
-
-    except Exception as e:
-        raise e
-
-    return projects
-
-
-async def get_calls(calls_file: str = None) -> dict:
-
-    try:
-        calls_file = calls_file if calls_file else CALLS_FILE
-        if calls := await read_data_file(calls_file):
-            return calls
-        else:
-            raise f"Could not read settings file: '{calls_file}'"
-    except Exception as e:
-        raise e
+async def get_profiles(profiles_file: str = PROFILES_FILE) -> dict:
+    """
+    Get all profiles from the profiles file
+    """
+    _ = await read_data_file(profiles_file)
+    return _
 
 
 async def get_version(request: dict) -> dict:
+    """
+    Get generic information about the VM, Container, or Serverless platform we're running on
+    """
+    server = request.get('server', ('localhost', 80))
+    _ = {
+        'os': f"{platform.system()} {platform.release()}",
+        'cpu': platform.machine(),
+        'python_version': str(sys.version).split()[0],
+        'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
+        'server_hostname': server[0],
+        'server_port': server[1],
 
-    from platform import system, machine, release, version
-
-    try:
-        _ = {
-            'os': "{} {}".format(system(), release()),
-            'cpu': machine(),
-            'python_version': str(version).split()[0],
-            'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
-        }
-        return _
-    except Exception as e:
-        raise e
+    }
+    return _
