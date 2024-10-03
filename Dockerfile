@@ -10,6 +10,7 @@ COPY *.py $APP_DIR
 COPY *.toml $APP_DIR
 COPY settings.yaml $APP_DIR
 COPY static/ $APP_DIR/static/
+COPY templates/ $APP_DIR/templates/
 ENTRYPOINT cd $APP_DIR && hypercorn -b 0.0.0.0:$PORT -w 1 --access-logfile '-' $APP_APP
 EXPOSE $PORT
 
