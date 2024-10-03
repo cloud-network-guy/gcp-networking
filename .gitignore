@@ -163,3 +163,7 @@ cython_debug/
 *.json
 *.csv
 *.xlsx
+
+id_rsa
+id_ecdsa
+id_ed25519
