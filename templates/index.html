@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>{{title}}</title>
+<meta charset="utf-8" />
+<meta name="description" content="A" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="index, follow, archive, noimageindex">
+<meta http-equiv="Cache-Control" content="no-cache"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0" />
+<style>
+table   { width: 100%; border-spacing: 2px; border-collapse: collapse; border: 1px solid black; }
+p,th,td { font-family: arial; text-align: left; font-size: 10px; border: 1px solid black; padding: 4px; }
+tr.even td { background-color: #f4f4f4; }
+tr.odd td { background-color:#f2f2f2; }
+</style>
+</head>
+<body>
+<table style="width:100%" border="1">
+{%if data|length > 0 %}
+  <tr>
+
+    {% for k in fields %}
+      <th>{{k}}</th>
+    {% endfor %}
+  </tr>
+{% endif %}
+
+  {% for row in data %}
+  {%if loop.index is divisibleby 2 %}
+      <tr class="even">
+        {% else %}
+      <tr class="odd">
+  {% endif %}
+  {% for k in fields -%}
+      <td><a href="?{{}}">{{ row[k] }}</a></td>
+   {% endfor -%}
+  </tr>
+  {% endfor %}
+</table>
+</body>
+</html>

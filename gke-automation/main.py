@@ -123,6 +123,17 @@ async def get_projects(access_token: str) -> list:
         raise e
 
 
+async def get_project(project_id: str, access_token: str) -> dict:
+
+    try:
+        url = f"https://compute.googleapis.com/compute/v1/projects/{project_id}"
+        params = {'filter': "lifecycleState: ACTIVE"}
+        data = await get_api_data(url, access_token, params)
+        return {}
+    except Exception as e:
+        raise e
+
+
 async def get_shared_vpc_service_projects(host_project_id: str, access_token: str) -> list:
 
     try:

@@ -2,11 +2,12 @@
 
 from os import environ
 from asyncio import run
-from gcp_operations import get_adc_token, make_gcp_call, parse_results
+from aiohttp import ClientSession
+from gcp_utils import get_access_token, get_api_data
 
-PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
-WORKSPACE = os.environ.get("TF_WORKSPACE")
-MODULE = os.environ.get("TF_MODULE")
+PROJECT_ID = environ.get("GCP_PROJECT_ID")
+WORKSPACE = environ.get("TF_WORKSPACE")
+MODULE = environ.get("TF_MODULE")
 
 CALLS = {
     'google_compute_vpn_tunnel': "aggregated/vpnTunnels",
@@ -18,13 +19,15 @@ CALLS = {
 async def main():
 
     try:
-        access_token = await get_adc_token()
+        access_token = await get_access_token()
     except Exception as e:
         quit(e)
 
+    session = ClientSession(raise_for_status=False)
+
     for resource, call in CALLS.items():
         url = f"/compute/v1/projects/{PROJECT_ID}/{call}"
-        results = await make_gcp_call(url, access_token, api_name='compute')
+        results = get_api_data(session, url, access_token)
         if 'vpn_tunnel' in resource:
             items = parse_results(results, "parse_vpn_tunnels")
         else:
