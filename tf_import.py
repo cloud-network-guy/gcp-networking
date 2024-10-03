@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
+from os import environ
 from asyncio import run
 from gcp_operations import get_adc_token, make_gcp_call, parse_results
 
-PROJECT_ID = "otl-vpc-shared"
-WORKSPACE = "otl-vpc-shared"
-MODULE = 'hybrid-networking'
+PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+WORKSPACE = os.environ.get("TF_WORKSPACE")
+MODULE = os.environ.get("TF_MODULE")
 
 CALLS = {
     'google_compute_vpn_tunnel': "aggregated/vpnTunnels",

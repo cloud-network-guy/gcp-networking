@@ -1,17 +1,20 @@
 #!/usr/bin/env python3 
 
-from asyncio import run, gather
-from utils import get_settings, read_service_account_key, get_adc_token, get_projects, get_calls, write_data_file
-from gcp_operations import make_api_call
-from gcloud.aio.storage import Storage
-from time import time
 import yaml
+from time import time
+from gcloud.aio.storage import Storage
+from asyncio import run, gather
+from aiohttp import ClientSession
+from file_utils import get_settings, write_to_excel, get_calls
+from gcp_utils import get_access_token, get_projects, get_api_data
+from gcp_classes import Instance, ForwardingRule, CloudRouter, GKECluster
 
 
 async def main():
 
     try:
         settings = await get_settings()
+        access_token = await get_access_token(settings.get('key_file'))
     except Exception as e:
         quit(e)
 
@@ -59,7 +62,8 @@ async def main():
     for project in projects.values():
         access_token = project.get('access_token')
         _ = project.get('urls', [])
-        tasks.extend([make_api_call(url, access_token) for url in _])
+        #tasks.extend([make_api_call(url, access_token) for url in _])
+        tasks.extend([get_api_data(session, url, access_token) for url in _])
         urls.extend(_)
 
     # Make the API calls

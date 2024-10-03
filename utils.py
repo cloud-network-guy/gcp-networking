@@ -106,38 +106,6 @@ async def get_projects(access_token: str, parent_filter: str = None, state: str 
     return projects
 
 
-async def get_service_projects(host_project_id: str, access_token: str) -> list:
-    """
-    Given a Shared VPC host project, get list of all projects under that folder
-    """
-    session = ClientSession(raise_for_status=False)
-    url = f"https://compute.googleapis.com/compute/v1/projects/{host_project_id}/getXpnResources"
-    _resources = await get_api_data(session, url, access_token)
-    await session.close()
-    assert len(_resources) > 0, f"No service projects found in Project ID '{host_project_id}'"
-    return [r['id'] for r in _resources]
-
-
-async def get_networks(project_id: str, access_token: str) -> list:
-    """
-    Given a Shared VPC host project and VPC network name, return all private subnets for a given region
-    """
-    from gcp_classes import Network
-
-    session = ClientSession(raise_for_status=True)
-    url = f"https://compute.googleapis.com/compute/v1/projects/{project_id}/global/networks"
-    _resources = await get_api_data(session, url, access_token)
-    await session.close()
-    assert len(_resources) > 0, f"No VPC Networks found in Project ID '{project_id}'"
-    networks = []
-    for _network in _resources:
-        network = Network(_network)
-        #subnet_regions = collections.Counter([s.split('/')[-3] for s in subnetworks])
-        networks.append(network)
-    #networks = sorted(networks, key=lambda n: n['num_subnetworks'], reverse=True)
-    return networks
-
-
 async def get_project_from_account_key(key_file: str) -> dict:
     from file_utils import read_data_file
 

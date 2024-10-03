@@ -47,7 +47,6 @@ class GCPItem:
         # Convert to human-readable string
         self.creation = str(datetime.fromtimestamp(self.creation_timestamp))  
 
-
         if _ := item.get('zone'):
             self.zone = _.split('/')[-1]
             self.region = self.zone[:-2]

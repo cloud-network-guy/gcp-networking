@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 from asyncio import run
-from utils import get_adc_token
-from gcp_operations import make_gcp_call
+from aiohttp import ClientSession
+from gcp_utils import get_access_token, get_api_data
 
 
 def create_import_entry(module, resource, project_id):
@@ -37,13 +37,15 @@ def create_import_entry(module, resource, project_id):
 async def main(module, resource, project_id, network):
 
     try:
-        access_token = await get_adc_token()
+        access_token = await get_access_token()
     except Exception as e:
         quit(e)
 
     # Make API Call
+    session = ClientSession()
     url = f"/compute/v1/projects/{project_id}/aggregated/routers"
-    results = await make_gcp_call(url, access_token, api_name='compute')
+    results = await get_api_data(session, url, access_token)
+    await session.close()
 
     # Filter for specific network
     items = [item for item in results.get('items', []) if item.get('network').endswith(network)]
