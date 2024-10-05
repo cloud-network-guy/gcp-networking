@@ -242,7 +242,6 @@ async def main():
         })
         subnetworks.update({s: subnetwork})
     #_ = {k: parameters.get(k) for k in SERVICE_USAGE_PARENTS.keys()}
-    #_ = {'project_id': "otc-ems-icar"}
     #service_usages = await get_service_usage(_, access_token)
 
     return {
