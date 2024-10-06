@@ -95,7 +95,7 @@ parse_function = "parse_peer_vpn_gateways"
 [gke_clusters]
 description = "GKE Clusters"
 api_name = "container"
-calls = ["global/externalVpnGateways"]
+calls = ["locations/-/clusters"]
 
 [cloud_sqls]
 description = "Cloud SQL Instances"

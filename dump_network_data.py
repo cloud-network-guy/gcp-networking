@@ -29,9 +29,14 @@ async def main():
 
     network_data = {}
     session = ClientSession(raise_for_status=False)
-    for k, call in calls.items():
-        # Perform API calls
-        urls = [f"/compute/v1/projects/{project.id}/{call}" for project in projects]
+    for k, v in calls.items():
+        api_name = v.get('api_name', "compute")
+        urls = []
+        for call in v.get('calls', []):
+            if api_name == 'compute':
+                urls.extend([f"/compute/v1/projects/{project.id}/{call}" for project in projects])
+            if api_name == 'container':
+                urls.extend([f"/v1/projects/{project.id}/{call}" for project in projects])
         tasks = [get_api_data(session, url, access_token) for url in urls]
         results = await gather(*tasks)
         results = dict(zip(urls, results))
@@ -43,10 +48,14 @@ async def main():
         network_data[k] = items
 
     for k, v in calls.items():
+        api_name = v.get('api_name', "compute")
         urls = []
         # For each project ID, get network data
         for call in v.get('calls', []):
-            urls.extend([f"/compute/v1/projects/{project.id}/{call}" for project in projects])
+            if api_name == 'compute':
+                urls.extend([f"/compute/v1/projects/{project.id}/{call}" for project in projects])
+            if api_name == 'container':
+                urls.extend([f"/v1/projects/{project.id}/{call}" for project in projects])
         tasks = [get_api_data(session, url, access_token) for url in urls]
         results = await gather(*tasks)
         data = []

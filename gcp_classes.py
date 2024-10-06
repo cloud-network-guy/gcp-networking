@@ -35,7 +35,7 @@ class GCPProject:
 
 class GCPItem:
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         self.name = item.get('name')
         self.description = item.get('description', "")
@@ -64,12 +64,16 @@ class GCPItem:
             self.id = ""
             self.project_id = "unknown"
 
-        if self.zone:
-            self.key = f"{self.project_id}/{self.zone}/{self.name}"
-        elif self.region == 'global':
-            self.key = f"{self.project_id}/{self.name}"
+        if location := item.get('location'):
+            self.zone = "N/A"
+            self.region = location.split("/")[-1][:-2] if location[-2] == '-' else location
         else:
-            self.key = f"{self.project_id}/{self.region}/{self.name}"
+            if self.zone:
+                self.key = f"{self.project_id}/{self.zone}/{self.name}"
+            elif self.region == 'global':
+                self.key = f"{self.project_id}/{self.name}"
+            else:
+                self.key = f"{self.project_id}/{self.region}/{self.name}"
 
     def __repr__(self):
         return str({k: v for k, v in vars(self).items() if v})
@@ -80,7 +84,7 @@ class GCPItem:
 
 class GCPNetworkItem(GCPItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -91,7 +95,12 @@ class GCPNetworkItem(GCPItem):
 
         self.network_key = None
         self.network_name = None
-        if network := item.get('network'):
+
+        if network_config := item.get('networkConfig'):
+            network = network_config.get('network', 'UNKNOWN')
+        else:
+            network = item.get('network')
+        if network:
             self.network_project_id = network.split('/')[-4]
             self.network_name = network.split('/')[-1]
             self.network_key = f"{self.network_project_id}/{self.network_name}"
@@ -99,15 +108,16 @@ class GCPNetworkItem(GCPItem):
         self.subnet_key = None
         self.subnet_name = None
         if subnetwork := item.get('subnetwork'):
-            self.network_project_id = subnetwork.split('/')[-5]
-            self.region = subnetwork.split('/')[-3]
-            self.subnet_name = subnetwork.split('/')[-1]
+            if '/subnetworks/' in subnetwork:
+                self.network_project_id = subnetwork.split('/')[-5]
+                self.region = subnetwork.split('/')[-3]
+            self.subnet_name = subnetwork
             self.subnet_key = f"{self.network_project_id}/{self.region}/{self.subnet_name}"
 
 
 class Network(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -126,7 +136,7 @@ class Network(GCPNetworkItem):
 
 class Subnet(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -140,7 +150,7 @@ class Subnet(GCPNetworkItem):
 
 class CloudRouter(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -185,7 +195,7 @@ class CloudRouter(GCPNetworkItem):
 
 class CloudNat(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -202,7 +212,7 @@ class CloudNat(GCPNetworkItem):
 
 class FirewallRule(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -212,7 +222,7 @@ class FirewallRule(GCPNetworkItem):
 
 class ForwardingRule(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -234,7 +244,7 @@ class ForwardingRule(GCPNetworkItem):
 
 class TargetProxy(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
         self.ssl_certs = []
@@ -245,7 +255,7 @@ class TargetProxy(GCPNetworkItem):
 
 class CloudVPNGateway(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -255,7 +265,7 @@ class CloudVPNGateway(GCPNetworkItem):
 
 class PeerVPNGateway(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -269,7 +279,7 @@ class PeerVPNGateway(GCPNetworkItem):
 
 class VPNTunnel(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -290,7 +300,7 @@ class VPNTunnel(GCPNetworkItem):
 
 class Instance(GCPItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -306,7 +316,7 @@ class Instance(GCPItem):
 
 class InstanceNic(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -335,7 +345,7 @@ class InstanceNic(GCPNetworkItem):
 
 class SSLCert(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         from cryptography.x509 import load_pem_x509_certificate
         from cryptography.x509.oid import NameOID
@@ -390,17 +400,25 @@ class SSLCert(GCPNetworkItem):
 
 class GKECluster(GCPItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
+        self.current_master_version = item.get('currentMasterVersion', 'UNKNOWN')
+        self.current_node_version = item.get('currentNodeVersion', "UNKNOWN"),
+
+        self.master_range = None
         self.endpoint_ips = []
         if private_cluster_config := item.get('privateClusterConfig'):
+            self.master_range = private_cluster_config.get('masterIpv4CidrBlock')
             if public_endpoint := private_cluster_config.get('publicEndpoint'):
                 self.endpoint_ips.append(public_endpoint)
             if private_cluster_config.get('enablePrivateEndpoint'):
                 if private_endpoint := private_cluster_config.get('privateEndpoint'):
                     self.endpoint_ips.append(private_endpoint)
+
+        location = item.get('location', "unknown-0")
+        self.region = location.split("/")[-1][:-2] if location[-2] == '-' else location
 
         self.network_project_id = "unknown"
         self.network_name = "unknown"
@@ -408,8 +426,19 @@ class GKECluster(GCPItem):
             if network := network_config.get('network'):
                 self.network_project_id = network.split('/')[-4]
                 self.network_name = network.split('/')[-1]
+                if subnetwork := item.get('subnetwork'):
+                    self.subnet_name = subnetwork.split('/')[-1]
+                    self.subnet_key = f"{self.network_project_id}/{self.region}/{self.subnet_name}"
+
         self.network_key = f"{self.network_project_id}/{self.network_name}"
 
+        if ip_allocation_policy := item.get('ipAllocationPolicy'):
+            self.pods_range = ip_allocation_policy.get('clusterSecondaryRangeName')
+            self.pods_cidr = ip_allocation_policy.get('clusterIpv4Cidr')
+            self.services_range = ip_allocation_policy.get('servicesSecondaryRangeName')
+            self.services_cidr = ip_allocation_policy.get('servicesIpv4Cidr')
+        else:
+            [setattr(self, k, "N/A") for k in ('pods_cidr', 'pods_range', 'services_cidr', 'services_range')]
 
         """
         if node_pools := item.get('nodePools'):
@@ -419,13 +448,11 @@ class GKECluster(GCPItem):
                     self.network_name = network.split('/')[-1]
         self.network_key = f"{self.network_project_id}/{self.network_name}"
         """
-        location = item.get('location', "unknown-0")
-        self.region = location.split("/")[-1][:-2] if location[-2] == '-' else location
 
 
 class CloudSQL(GCPItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
@@ -444,7 +471,7 @@ class CloudSQL(GCPItem):
 
 class SecurityPolicy(GCPNetworkItem):
 
-    def __init__(self, item: dict = {}):
+    def __init__(self, item: dict):
 
         super().__init__(item)
 
