@@ -274,7 +274,7 @@ class VPNTunnel(GCPNetworkItem):
         super().__init__(item)
 
         self.vpn_gateway = None
-        if vpn_gateway := item('vpnGateway'):
+        if vpn_gateway := item.get('vpnGateway'):
             self.vpn_gateway = vpn_gateway.split('/')[-1]
         self.interface = item.get('vpnGatewayInterface')
         self.peer_gateway = None

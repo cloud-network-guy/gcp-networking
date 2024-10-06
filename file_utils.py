@@ -177,17 +177,28 @@ async def get_profiles(profiles_file: str = PROFILES_FILE) -> dict:
 
 
 async def get_version(request: dict) -> dict:
+
     """
     Get generic information about the VM, Container, or Serverless platform we're running on
     """
-    server = request.get('server', ('localhost', 80))
-    _ = {
-        'os': f"{platform.system()} {platform.release()}",
-        'cpu': platform.machine(),
-        'python_version': str(sys.version).split()[0],
-        'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
-        'server_hostname': server[0],
-        'server_port': server[1],
 
-    }
-    return _
+    import google.auth
+    import aiohttp
+
+    try:
+        server = request.get('server', ('localhost', 80))
+        _ = {
+            'os': f"{platform.system()} {platform.release()}",
+            'cpu': platform.machine(),
+            'versions': {
+                'python': str(sys.version).split()[0],
+                'aiohttp': aiohttp.__version__,
+                'google_auth': google.auth.__version__,
+            },
+            'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
+            'server_hostname': server[0],
+            'server_port': server[1],
+        }
+        return _
+    except Exception as e:
+        raise e

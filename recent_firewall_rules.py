@@ -1,6 +1,5 @@
 #!/usr/bin/env python3 
 
-from pprint import pprint
 from time import time
 from asyncio import run, gather
 from aiohttp import ClientSession

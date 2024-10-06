@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from pprint import pprint
 from os import environ
 from asyncio import run, gather
 from aiohttp import ClientSession
@@ -27,14 +26,12 @@ async def main():
     session = ClientSession(raise_for_status=False)
     try:
         urls = [f"/compute/v1/projects/{pid}/global/securityPolicies" for pid in project_ids]
-        #tasks = [make_api_call(url, access_token) for url in urls]
         tasks = [get_api_data(session, url, access_token) for url in urls]
         results = await gather(*tasks)
         results = [item for items in results for item in items]  # Flatten results
         for item in results:
             _ = SecurityPolicy(item)
             policies.append(_)
-            #print(item.get('name'), item.get('selfLink'))
     except Exception as e:
         raise e
     await session.close()
@@ -44,7 +41,8 @@ async def main():
 if __name__ == "__main__":
 
     _ = run(main())
-    _ = [policy for policy in _ if policy.name == 'lbl-dev-whitelist']
+    policy_name = environ.get('POLICY_NAME')
+    _ = [policy for policy in _ if policy.name == policy_name]
     for policy in _:
         rules = sorted(list(policy.rules), key=lambda x: int(x.get('priority')), reverse=False)
         for rule in rules:

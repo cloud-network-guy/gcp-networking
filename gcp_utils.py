@@ -106,6 +106,24 @@ async def get_projects(access_token: str, parent_filter: str = None, state: str 
     return projects
 
 
+async def get_project(project_id: str, access_token: str, parent_filter: str = None) -> dict:
+    """
+    Get details of a specific project
+    """
+    from gcp_classes import GCPProject
+
+    try:
+        session = ClientSession(raise_for_status=False)
+        url = f"https://compute.googleapis.com/compute/v1/projects/{project_id}"
+        qs = {'filter': parent_filter} if parent_filter else None
+        _project = await get_api_data(session, url, access_token, qs)
+        await session.close()
+        project = GCPProject(_project[0])
+        return project.__dict__
+    except Exception as e:
+        raise e
+
+
 async def get_service_projects(host_project_id: str, access_token: str) -> list:
     """
     Given a Shared VPC host project, get list of all projects under that folder
@@ -115,7 +133,7 @@ async def get_service_projects(host_project_id: str, access_token: str) -> list:
     _resources = await get_api_data(session, url, access_token)
     await session.close()
     assert len(_resources) > 0, f"No service projects found in Project ID '{host_project_id}'"
-    return [r['id'] for r in _resources]
+    return [r['id'] for r in _resources if r.get('type') == "PROJECT"]
 
 
 async def get_networks(project_id: str, access_token: str) -> list:
@@ -145,17 +163,3 @@ async def get_project_from_account_key(key_file: str) -> dict:
     return _.get('project_id')
 
 
-async def get_version(request: dict) -> dict:
-
-    from platform import system, machine, release, version
-
-    try:
-        _ = {
-            'os': "{} {}".format(system(), release()),
-            'cpu': machine(),
-            'python_version': str(version).split()[0],
-            'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
-        }
-        return _
-    except Exception as e:
-        raise e
