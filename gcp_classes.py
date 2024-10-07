@@ -39,22 +39,34 @@ class GCPItem:
 
         self.name = item.get('name')
         self.description = item.get('description', "")
-        if creation_timestamp := item.get('creationTimestamp'):
+        self.kind = item.get('kind')
+        self.region = None
+        self.zone = None
+        for field in ('creationTimestamp', 'createTime'):
+            if creation_timestamp := item.get(field):
+                break
+        if creation_timestamp:
             date_time = f"{creation_timestamp[:10]} {creation_timestamp[11:19]}"
             self.creation_timestamp = int(datetime.timestamp(datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")))
         else:
             self.creation_timestamp = 0
-        # Convert to human-readable string
-        self.creation = str(datetime.fromtimestamp(self.creation_timestamp))  
-
-        if _ := item.get('zone'):
-            self.zone = _.split('/')[-1]
+        self.creation = str(datetime.fromtimestamp(self.creation_timestamp))     # Convert to human-readable string
+        if zone := item.get('zone'):
+            self.zone = zone.split('/')[-1]
             self.region = self.zone[:-2]
+        elif region := item.get('region'):
+            self.region = region.split('/')[-1]
         else:
-            self.zone = None
-            self.region = item.get('region', "/global").split('/')[-1]
-
+            self.region = "global"
+        if location := item.get('location'):
+            if location[-2] == '-':
+                zone = location.split('/')[-1]
+                self.zone = zone
+                self.region = zone[:-2]
+            else:
+                self.region = location
         if _ := item.get('selfLink'):
+            self.self_link = _
             self.id = _.replace('https://www.googleapis.com/compute/v1/', "")
             self.project_id = _.split('/')[-4 if self.region == 'global' else -5]
         elif _ := item.get('id'):
@@ -63,17 +75,12 @@ class GCPItem:
         else:
             self.id = ""
             self.project_id = "unknown"
-
-        if location := item.get('location'):
-            self.zone = "N/A"
-            self.region = location.split("/")[-1][:-2] if location[-2] == '-' else location
+        if self.zone:
+            self.key = f"{self.project_id}/{self.zone}/{self.name}"   # Zonal compute resource
+        elif self.region == 'global':
+            self.key = f"{self.project_id}/{self.name}"   # Global compute resource
         else:
-            if self.zone:
-                self.key = f"{self.project_id}/{self.zone}/{self.name}"
-            elif self.region == 'global':
-                self.key = f"{self.project_id}/{self.name}"
-            else:
-                self.key = f"{self.project_id}/{self.region}/{self.name}"
+            self.key = f"{self.project_id}/{self.region}/{self.name}"  # Regional compute resource
 
     def __repr__(self):
         return str({k: v for k, v in vars(self).items() if v})
@@ -92,10 +99,9 @@ class GCPNetworkItem(GCPItem):
             self.network = self.id   # This is itself a network, so use its own ID
         if self.id.endswith('/subnetworks'):
             self.subnetwork = self.id   # This is itself a subnet, so use its own ID
-
+        self.network_project_id = self.project_id
         self.network_key = None
         self.network_name = None
-
         if network_config := item.get('networkConfig'):
             network = network_config.get('network', 'UNKNOWN')
         else:
@@ -104,15 +110,17 @@ class GCPNetworkItem(GCPItem):
             self.network_project_id = network.split('/')[-4]
             self.network_name = network.split('/')[-1]
             self.network_key = f"{self.network_project_id}/{self.network_name}"
-
         self.subnet_key = None
         self.subnet_name = None
         if subnetwork := item.get('subnetwork'):
             if '/subnetworks/' in subnetwork:
-                self.network_project_id = subnetwork.split('/')[-5]
+                if not self.network_project_id:
+                    self.network_project_id = subnetwork.split('/')[-5]
                 self.region = subnetwork.split('/')[-3]
-            self.subnet_name = subnetwork
-            self.subnet_key = f"{self.network_project_id}/{self.region}/{self.subnet_name}"
+            self.subnet_name = subnetwork.split('/')[-1]
+        if self.kind == "compute#subnetwork":
+            self.subnet_name = self.name
+        self.subnet_key = f"{self.network_project_id}/{self.region}/{self.subnet_name}"
 
 
 class Network(GCPNetworkItem):
@@ -306,8 +314,8 @@ class Instance(GCPItem):
 
         # Information about the instance
         self.name = item.get('name')
-        self.zone = item.get('zone', "unknown-0").split('/')[-1]
-        self.region = self.zone[:-2]
+        #self.zone = item.get('zone', "unknown-0").split('/')[-1]
+        #self.region = self.zone[:-2]
         self.machine_type = item.get('machineType', "unknown/unknown").split('/')[-1]
         self.ip_forwarding = item.get('canIpForward', False)
         self.status = item.get('status', "UNKNOWN")
@@ -320,27 +328,18 @@ class InstanceNic(GCPNetworkItem):
 
         super().__init__(item)
 
+        # Get IP Address info
         self.ip_address = item.get('networkIP')
-        self.network_key = None
-        if network := item.get('network'):
-            self.network_name = network.split("/")[-1]
-            self.network_project_id = network.split("/")[-4]
-            self.network_key = f"{self.network_project_id}/{self.network_name}"
-            self.subnet_key = None
-            if subnetwork := item.get('subnetwork'):
-                self.subnet_name = subnetwork.split('/')[-1]
-                self.region = subnetwork.split('/')[-3]
-                self.subnet_key = f"{self.network_project_id}/{self.region}/{self.subnet_name}"
 
-            # Also check if the instance has any active NAT IP addresses
-            self.access_config_name = None
-            self.access_config_type = None
-            self.external_ip_address = None
-            if access_configs := item.get('accessConfigs'):
-                for access_config in access_configs:
-                    self.access_config_name = access_config.get('name', "UNKNOWN")
-                    self.access_config_type = access_config.get('type', "UNKNOWN")
-                    self.external_ip_address = access_config.get('natIP', "UNKNOWN")
+        # Also check if the instance has any active NAT IP addresses
+        self.access_config_name = None
+        self.access_config_type = None
+        self.external_ip_address = None
+        if access_configs := item.get('accessConfigs'):
+            for access_config in access_configs:
+                self.access_config_name = access_config.get('name', "UNKNOWN")
+                self.access_config_type = access_config.get('type', "UNKNOWN")
+                self.external_ip_address = access_config.get('natIP', "UNKNOWN")
 
 
 class SSLCert(GCPNetworkItem):
@@ -417,9 +416,7 @@ class GKECluster(GCPItem):
                 if private_endpoint := private_cluster_config.get('privateEndpoint'):
                     self.endpoint_ips.append(private_endpoint)
 
-        location = item.get('location', "unknown-0")
-        self.region = location.split("/")[-1][:-2] if location[-2] == '-' else location
-
+        """
         self.network_project_id = "unknown"
         self.network_name = "unknown"
         if network_config := item.get('networkConfig'):
@@ -429,8 +426,8 @@ class GKECluster(GCPItem):
                 if subnetwork := item.get('subnetwork'):
                     self.subnet_name = subnetwork.split('/')[-1]
                     self.subnet_key = f"{self.network_project_id}/{self.region}/{self.subnet_name}"
-
         self.network_key = f"{self.network_project_id}/{self.network_name}"
+        """
 
         if ip_allocation_policy := item.get('ipAllocationPolicy'):
             self.pods_range = ip_allocation_policy.get('clusterSecondaryRangeName')
@@ -438,7 +435,7 @@ class GKECluster(GCPItem):
             self.services_range = ip_allocation_policy.get('servicesSecondaryRangeName')
             self.services_cidr = ip_allocation_policy.get('servicesIpv4Cidr')
         else:
-            [setattr(self, k, "N/A") for k in ('pods_cidr', 'pods_range', 'services_cidr', 'services_range')]
+            [setattr(self, field, "N/A") for field in ('pods_cidr', 'pods_range', 'services_cidr', 'services_range')]
 
         """
         if node_pools := item.get('nodePools'):

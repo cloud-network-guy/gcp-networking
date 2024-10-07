@@ -1,5 +1,6 @@
 aiofiles==23.2.1
 aiohttp==3.10.5
+cryptography
 #flask==3.0.3
 #Flask-Mail==0.10.0
 gcloud-aio-auth==5.3.2
