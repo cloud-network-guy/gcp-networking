@@ -131,7 +131,7 @@ async def get_projects(access_token: str, parent_filter: str = None, state: str 
     return projects
 
 
-async def get_project(project_id: str, access_token: str, parent_filter: str = None, session: ClientSession = None) -> dict:
+async def get_project(project_id: str, access_token: str, parent_filter: dict = None, session: ClientSession = None) -> dict:
     """
     Get details of a specific project
     """
@@ -140,8 +140,14 @@ async def get_project(project_id: str, access_token: str, parent_filter: str = N
     try:
         _session = session if session else ClientSession(raise_for_status=True)
         url = f"https://compute.googleapis.com/compute/v1/projects/{project_id}"
-        qs = {'filter': parent_filter} if parent_filter else None
-        _project = await get_api_data(_session, url, access_token, qs)
+        if parent_filter:
+            p = None
+            for k, v in SERVICE_USAGE_PARENTS.items():
+                if _ := parent_filter.get(k):
+                    p = f"{v}/{_}"
+                    break
+            url = f"{url}?filter={parent_filter}"
+        _project = await get_api_data(_session, url, access_token)
         if not session:
             await _session.close()
         project = GCPProject(_project[0])
@@ -164,7 +170,7 @@ async def get_service_projects(host_project_id: str, access_token: str, session:
     return _
 
 
-async def get_service_usage(parent: dict, access_token: str) -> list:
+async def get_service_usage(parent: dict, access_token: str, session: ClientSession = None) -> list:
     """
     Get Service Usage of an org, folder, or project
     """
@@ -174,10 +180,12 @@ async def get_service_usage(parent: dict, access_token: str) -> list:
             p = f"{v}/{_}"
             break
     assert p, f"parent must be one of these keys: {SERVICE_USAGE_PARENTS.keys()}.  Got '{parent}'"
-    session = ClientSession(raise_for_status=True)
+    _session = session if session else ClientSession(raise_for_status=True)
     url = f"https://serviceusage.googleapis.com/v1/{p}/services"
-    _resources = await get_api_data(session, url, access_token)
-    await session.close()
+    _resources = await get_api_data(_session, url, access_token)
+    if not session:
+        await _session.close()
+    return _resources
 
 
 async def get_networks(project_id: str, access_token: str, session: ClientSession = None) -> list:
@@ -263,6 +271,22 @@ async def get_subnet_iam_binding(subnet_id: str, access_token: str, session: Cli
     return members
 
 
+async def get_instances(project_id: str, access_token: str, session: ClientSession = None) -> list:
+
+    from gcp_classes import Instance
+
+    _session = session if session else ClientSession(raise_for_status=True)
+    url = f"/compute/v1/projects/{project_id}/aggregated/instances"
+    _results = await get_api_data(_session, url, access_token)
+    if not session:
+        await _session.close()
+    #_results = [item for items in _results for item in items]
+    #print([item.get('name') for item in _results if item])
+    _ = [Instance(item) for item in _results]
+    #print(project_id, _)
+    return _
+
+
 async def get_gke_clusters(project_id: str, access_token: str, session: ClientSession = None) -> list:
 
     from gcp_classes import GKECluster
@@ -275,5 +299,5 @@ async def get_gke_clusters(project_id: str, access_token: str, session: ClientSe
     #_results = [item for items in _results for item in items]
     #print([item.get('name') for item in _results if item])
     _ = [GKECluster(item) for item in _results]
-    print(project_id, _)
+    #print(project_id, _)
     return _

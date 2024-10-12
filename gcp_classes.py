@@ -36,6 +36,15 @@ class GCPProject:
     def __str__(self):
         return str({k: v for k, v in vars(self).items() if v})
 
+    async def get_instances(self, access_token: str, session: ClientSession = None):
+
+        from gcp_utils import get_instances
+
+        _session = session if session else ClientSession(raise_for_status=False)
+        self.instances = await get_instances(self.id, access_token, _session)
+        if not session:
+            await _session.close()
+
     async def get_gke_clusters(self, access_token: str, session: ClientSession = None):
 
         from gcp_utils import get_gke_clusters
@@ -55,12 +64,15 @@ class GCPItem:
         self.kind = item.get('kind')
         self.region = None
         self.zone = None
-        for field in ('creationTimestamp', 'createTime'):
+        for field in ('creation_timestamp', 'creationTimestamp', 'createTime'):
             if creation_timestamp := item.get(field):
                 break
         if creation_timestamp:
-            date_time = f"{creation_timestamp[:10]} {creation_timestamp[11:19]}"
-            self.creation_timestamp = int(datetime.timestamp(datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")))
+            if isinstance(creation_timestamp, int):
+                self.creation_timestamp = creation_timestamp
+            else:
+                date_time = f"{creation_timestamp[:10]} {creation_timestamp[11:19]}"
+                self.creation_timestamp = int(datetime.timestamp(datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")))
         else:
             self.creation_timestamp = 0
         self.creation = str(datetime.fromtimestamp(self.creation_timestamp))     # Convert to human-readable string
@@ -78,6 +90,7 @@ class GCPItem:
                 self.region = zone[:-2]
             else:
                 self.region = location
+
         if _ := item.get('selfLink'):
             self.self_link = _
             self.id = _.replace('https://www.googleapis.com/compute/v1/', "")
@@ -87,7 +100,7 @@ class GCPItem:
             self.project_id = _.split('/')[1]
         else:
             self.id = ""
-            self.project_id = "unknown"
+            self.project_id = item.get('project_id', "unknown")
         if self.zone:
             self.key = f"{self.project_id}/{self.zone}/{self.name}"   # Zonal compute resource
         elif self.region == 'global':
@@ -346,7 +359,16 @@ class Instance(GCPItem):
         self.machine_type = item.get('machineType', "unknown/unknown").split('/')[-1]
         self.ip_forwarding = item.get('canIpForward', False)
         self.status = item.get('status', "UNKNOWN")
-        self.nics = [InstanceNic(nic) for nic in item.get('networkInterfaces', [])]
+        nics = []
+        for nic in item.get('networkInterfaces', []):
+            nic.update({
+                'name': f"{self.name}-{nic['name']}",
+                'project_id': self.project_id,
+                'zone': self.zone,
+                'creation_timestamp': self.creation_timestamp,
+            })
+            nics.append(nic)
+        self.nics = [InstanceNic(nic) for nic in nics]
 
 
 class InstanceNic(GCPNetworkItem):
@@ -424,13 +446,13 @@ class SSLCert(GCPNetworkItem):
             self.is_expiring_soon = True
 
 
-class GKECluster(GCPItem):
+class GKECluster(GCPNetworkItem):
 
     def __init__(self, item: dict):
 
         super().__init__(item)
 
-        self.kink = 'gke_cluster'
+        self.kind = 'gke_cluster'
         self.current_master_version = item.get('currentMasterVersion', 'UNKNOWN')
         self.current_node_version = item.get('currentNodeVersion', "UNKNOWN")
         self.status = item.get('status', "UNKNOWN")

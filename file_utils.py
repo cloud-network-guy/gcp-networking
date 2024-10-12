@@ -160,6 +160,37 @@ async def get_settings(settings_file: str = SETTINGS_FILE) -> dict:
     return _
 
 
+async def get_profile(settings: dict, profile: str) -> dict:
+
+    if profiles := settings.get('profiles'):
+        if _profile := profiles.get(profile):
+            return _profile
+        else:
+            raise f"profile '{profile}' not found in settings file"
+    else:
+        raise f"no profiles found in settings file"
+
+
+async def apply_filter(items: list, settings: dict, options: dict = None) -> list:
+
+    # look for regional filter
+    #if regions := options.get('regions'):
+    regions = [options.get('region')] if 'region' in options else options.get('regions', [])
+    items = [item for item in items if item is not None]
+    print('regions', regions)
+    if len(regions) > 0:
+        items = [item for item in items if item.region in regions]
+    # look for network string filter
+    if _profile := options.get('profile'):
+        profile = await get_profile(settings, _profile)
+        if network_string := profile.get('network_string'):
+            relevant_networks = [item.network_name for item in items if network_string in item.network_name]
+        else:
+            relevant_networks = [options.get('network')] if 'network' in options else options.get('networks')
+        items = [item for item in items if item.network_name in relevant_networks]
+    return items
+
+
 async def get_calls(calls_file: str = CALLS_FILE) -> dict:
     """
     Get all calls from the calls file
