@@ -113,7 +113,7 @@ async def get_project_ids(access_token: str, projects: list = None) -> tuple:
     return tuple(project_ids)
 """
 
-
+"""
 async def make_api_call(url: str, access_token: str, session: ClientSession = None) -> tuple:
 
     if url.startswith('http:') or url.startswith('https:'):
@@ -237,3 +237,5 @@ async def get_api_data(urls: list, access_token: str, session: ClientSession = N
 
         session.close()
         yield tuple(results)
+
+"""

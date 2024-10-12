@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from time import time
+from aiohttp import ClientSession
 
 
 class GCPProject:
@@ -25,12 +26,24 @@ class GCPProject:
             if parent.get('type') == 'folder':
                 parent_folder_id = parent.get('id')
         self.parent_folder_id = int(parent_folder_id) if parent_folder_id else 000000000
+        self.instances = None
+        self.gke_clusters = None
+        self.forwarding_rules = None
 
     def __repr__(self):
         return str({k: v for k, v in vars(self).items() if v})
 
     def __str__(self):
         return str({k: v for k, v in vars(self).items() if v})
+
+    async def get_gke_clusters(self, access_token: str, session: ClientSession = None):
+
+        from gcp_utils import get_gke_clusters
+
+        _session = session if session else ClientSession(raise_for_status=False)
+        self.gke_clusters = await get_gke_clusters(self.id, access_token, _session)
+        if not session:
+            await _session.close()
 
 
 class GCPItem:
@@ -130,6 +143,8 @@ class Network(GCPNetworkItem):
         super().__init__(item)
 
         self.key = f"{self.project_id}/{self.name}"
+        self.network_key = self.key
+        self.network_name = self.name
         self.routing_mode = None
         if routing_config := item.get('routingConfig'):
             self.routing_mode = routing_config.get('routingMode', "UNKNOWN")
@@ -152,8 +167,20 @@ class Subnet(GCPNetworkItem):
         if cidr_range := item.get('ipCidrRange'):
             self.cidr_range = cidr_range
             self.usable_ips = (2 ** (32 - int(cidr_range.split('/')[-1]))) - 4
-
+            self.used_ips = 2
+        self.members = None
+        self.attached_projects = None
         self.key = f"{self.project_id}/{self.region}/{self.name}"
+        self.subnet_key = self.key
+
+    async def get_bindings(self, access_token: str, session: ClientSession = None):
+
+        from gcp_utils import get_subnet_iam_binding
+
+        _session = session if session else ClientSession(raise_for_status=True)
+        self.members = await get_subnet_iam_binding(self.id, access_token, _session)
+        if not session:
+            await _session.close()
 
 
 class CloudRouter(GCPNetworkItem):
@@ -403,8 +430,10 @@ class GKECluster(GCPItem):
 
         super().__init__(item)
 
+        self.kink = 'gke_cluster'
         self.current_master_version = item.get('currentMasterVersion', 'UNKNOWN')
-        self.current_node_version = item.get('currentNodeVersion', "UNKNOWN"),
+        self.current_node_version = item.get('currentNodeVersion', "UNKNOWN")
+        self.status = item.get('status', "UNKNOWN")
 
         self.master_range = None
         self.endpoint_ips = []
@@ -482,3 +511,23 @@ class SecurityPolicy(GCPNetworkItem):
                 'preview': rule.get('preview', False),
                 'match': rule.get('match', {}),
             })
+
+
+class PSAConnection:
+
+    def __init__(self, item: dict):
+
+        #print(item)
+        #self.project_id = project_id
+        self.peer_network_id = item.get('network')
+        self.network_name = self.peer_network_id.split('/')[-1]
+        self.peering_name = item.get('peering')
+        self.peering_ranges = item.get('reservedPeeringRanges')
+        self.service = item.get('service').split('/')[-1]
+        self.region = 'global'
+
+    def __repr__(self):
+        return str({k: v for k, v in vars(self).items() if v})
+
+    def __str__(self):
+        return str({k: v for k, v in vars(self).items() if v})

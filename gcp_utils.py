@@ -1,11 +1,28 @@
 import os
+from urllib import parse
+from asyncio import gather
 import google.auth
 import google.auth.transport.requests
 from google.oauth2 import service_account
 from aiohttp import ClientSession
+from gcp_classes import Network, Subnet
+
 
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
+SERVICE_USAGE_PARENTS = {'org_id': "organisations", 'folder_id': "folders", 'project_id': "projects"}
 PWD = os.path.realpath(os.path.dirname(__file__))
+
+
+async def get_project_from_account_key(key_file: str) -> dict:
+    """
+    Get the Project ID of a service account key file
+    """
+    from file_utils import read_data_file
+
+    _ = await read_data_file(key_file, "json")
+    if project_id := _.get('project_id'):
+        return project_id
+    raise f"project_id not found in JSON key file: '{key_file}'"
 
 
 async def get_access_token(key_file: str = None, quota_project_id: str = None) -> str:
@@ -36,13 +53,19 @@ async def get_api_data(session: ClientSession, url: str, access_token: str, para
         api_name = _.split('.')[0]
 
     # Url is something like /compute/v1/projects/{PROJECT_ID}...
-    url = url[1:] if url.startswith("/") else url
+    url = url[1:] if url.startswith("/") else url  # Remove leading /, will re-add it later
     if not api_name:
         if 'clusters' in url:
             api_name = "container"
         else:
             api_name = url.split('/')[0]
         url = f"https://{api_name}.googleapis.com/{url}"
+
+    # If Url has query string, convert that to parameters
+    if "?" in url:
+        _ = parse.urlparse(url)
+        url = f"https://{_.netloc}/{_.path}"
+        params = dict(parse.parse_qsl(_.query))
 
     if not items_key:
         if 'compute.googleapis.com' in url:
@@ -53,10 +76,12 @@ async def get_api_data(session: ClientSession, url: str, access_token: str, para
                 items_key = "resources"
         else:
             items_key = url.split('/')[-1]
-    headers = {'Authorization': f"Bearer {access_token}"}
+            #print(items_key)
+
     params = {} if not params else params
+    headers = {'Authorization': f"Bearer {access_token}"}
+
     data = []
-    #print(url, items_key)
     try:
         while True:
             async with (session.get(url, headers=headers, params=params) as response):
@@ -106,46 +131,66 @@ async def get_projects(access_token: str, parent_filter: str = None, state: str 
     return projects
 
 
-async def get_project(project_id: str, access_token: str, parent_filter: str = None) -> dict:
+async def get_project(project_id: str, access_token: str, parent_filter: str = None, session: ClientSession = None) -> dict:
     """
     Get details of a specific project
     """
     from gcp_classes import GCPProject
 
     try:
-        session = ClientSession(raise_for_status=False)
+        _session = session if session else ClientSession(raise_for_status=True)
         url = f"https://compute.googleapis.com/compute/v1/projects/{project_id}"
         qs = {'filter': parent_filter} if parent_filter else None
-        _project = await get_api_data(session, url, access_token, qs)
-        await session.close()
+        _project = await get_api_data(_session, url, access_token, qs)
+        if not session:
+            await _session.close()
         project = GCPProject(_project[0])
         return project.__dict__
     except Exception as e:
         raise e
 
 
-async def get_service_projects(host_project_id: str, access_token: str) -> list:
+async def get_service_projects(host_project_id: str, access_token: str, session: ClientSession = None) -> list:
     """
     Given a Shared VPC host project, get list of all projects under that folder
     """
-    session = ClientSession(raise_for_status=False)
-    url = f"https://compute.googleapis.com/compute/v1/projects/{host_project_id}/getXpnResources"
+    _session = session if session else ClientSession(raise_for_status=True)
+    url = f"/compute/v1/projects/{host_project_id}/getXpnResources"
+    _resources = await get_api_data(_session, url, access_token)
+    if not session:
+        await _session.close()
+    assert len(_resources) > 0, f"No service projects found in Project ID '{host_project_id}'"
+    _ = [r['id'] for r in _resources if r.get('type') == "PROJECT"]
+    return _
+
+
+async def get_service_usage(parent: dict, access_token: str) -> list:
+    """
+    Get Service Usage of an org, folder, or project
+    """
+    p = None
+    for k, v in SERVICE_USAGE_PARENTS.items():
+        if _ := parent.get(k):
+            p = f"{v}/{_}"
+            break
+    assert p, f"parent must be one of these keys: {SERVICE_USAGE_PARENTS.keys()}.  Got '{parent}'"
+    session = ClientSession(raise_for_status=True)
+    url = f"https://serviceusage.googleapis.com/v1/{p}/services"
     _resources = await get_api_data(session, url, access_token)
     await session.close()
-    assert len(_resources) > 0, f"No service projects found in Project ID '{host_project_id}'"
-    return [r['id'] for r in _resources if r.get('type') == "PROJECT"]
 
 
-async def get_networks(project_id: str, access_token: str) -> list:
+async def get_networks(project_id: str, access_token: str, session: ClientSession = None) -> list:
     """
     Given a Shared VPC host project and VPC network name, return all private subnets for a given region
     """
     from gcp_classes import Network
 
-    session = ClientSession(raise_for_status=True)
-    url = f"https://compute.googleapis.com/compute/v1/projects/{project_id}/global/networks"
-    _resources = await get_api_data(session, url, access_token)
-    await session.close()
+    _session = session if session else ClientSession(raise_for_status=True)
+    url = f"/compute/v1/projects/{project_id}/global/networks"
+    _resources = await get_api_data(_session, url, access_token)
+    if not session:
+        await _session.close()
     assert len(_resources) > 0, f"No VPC Networks found in Project ID '{project_id}'"
     networks = []
     for _network in _resources:
@@ -156,10 +201,79 @@ async def get_networks(project_id: str, access_token: str) -> list:
     return networks
 
 
-async def get_project_from_account_key(key_file: str) -> dict:
-    from file_utils import read_data_file
+async def get_subnets(project_id: str, access_token: str, session: ClientSession = None, regions: list = None) -> list:
 
-    _ = await read_data_file(key_file, "json")
-    return _.get('project_id')
+    """
+    Get subnets from a project and list of regions
+    """
+    from gcp_classes import Subnet
+
+    _session = session if session else ClientSession(raise_for_status=True)
+    if regions:
+        if len(regions) == 1:
+            region = regions[0]
+            urls = [f"/compute/v1/projects/{project_id}/regions/{region}/subnetworks"]
+        else:
+            urls = [f"/compute/v1/projects/{project_id}/regions/{r}/subnetworks" for r in regions]
+    else:
+        urls = [f"/compute/v1/projects/{project_id}/aggregated/subnetworks"]
+    #print(urls)
+    tasks = [get_api_data(_session, url, access_token) for url in urls]
+    _results = await gather(*tasks)
+    _results = [item for items in _results for item in items]
+    subnets = []
+    for _subnet in _results:
+        subnet = Subnet(_subnet)
+        #subnet_regions = collections.Counter([s.split('/')[-3] for s in subnetworks])
+        subnets.append(subnet)
+
+    if not session:
+        await _session.close()
+
+    return subnets
 
 
+async def get_subnet_iam_bindings(subnets: list[Subnet], access_token: str, session: ClientSession = None) -> None:
+
+    _session = session if session else ClientSession(raise_for_status=True)
+    tasks = [get_subnet_iam_binding(s.id, access_token, _session) for s in subnets]
+    _results = await gather(*tasks)
+    if not session:
+        await _session.close()
+    _results = [item for items in _results for item in items]
+    #print(_results)
+
+
+
+async def get_subnet_iam_binding(subnet_id: str, access_token: str, session: ClientSession = None) -> list:
+    """
+    Get list of Compute Network uses on a given subnet
+    """
+    subnet_id.replace('https://www.googleapis.com/compute/v1/', "")  # don't need/want full URL
+    _session = session if session else ClientSession(raise_for_status=True)
+    url = f"/compute/v1/{subnet_id}/getIamPolicy?optionsRequestedPolicyVersion=1"
+    #qs = {'optionsRequestedPolicyVersion': 1}
+    members = []
+    _ = await get_api_data(_session, url, access_token, items_key="bindings")
+    for binding in _:
+        if binding.get('role') == "roles/compute.networkUser":
+            members.extend(binding.get('members', []))
+    if not session:
+        await _session.close()
+    return members
+
+
+async def get_gke_clusters(project_id: str, access_token: str, session: ClientSession = None) -> list:
+
+    from gcp_classes import GKECluster
+
+    _session = session if session else ClientSession(raise_for_status=True)
+    url = f"/v1/projects/{project_id}/locations/-/clusters"
+    _results = await get_api_data(_session, url, access_token)
+    if not session:
+        await _session.close()
+    #_results = [item for items in _results for item in items]
+    #print([item.get('name') for item in _results if item])
+    _ = [GKECluster(item) for item in _results]
+    print(project_id, _)
+    return _
