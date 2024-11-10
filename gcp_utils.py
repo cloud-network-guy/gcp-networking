@@ -32,6 +32,7 @@ async def get_access_token(key_file: str = None, quota_project_id: str = None) -
     if key_file:
         # Convert relative to full path
         key_file = os.path.join(PWD, key_file)
+        assert os.path.exists(key_file), f"JSON key file not found: '{key_file}'"
         credentials = service_account.Credentials.from_service_account_file(key_file, scopes=SCOPES)
     else:
         # Authenticate via ADC
@@ -73,7 +74,8 @@ async def get_api_data(session: ClientSession, url: str, access_token: str, para
                 if 3 <= len(url.split('/compute/v1/projects/')[-1].split('/')) <= 4:
                     items_key = "items"
             else:
-                items_key = "resources"
+                if not url.endswith("getXpnHost"):
+                    items_key = "resources"
         else:
             items_key = url.split('/')[-1]
             #print(items_key)
@@ -116,10 +118,11 @@ async def get_projects(access_token: str, parent_filter: str = None, state: str 
     """
     from gcp_classes import GCPProject
 
-    session = ClientSession(raise_for_status=False)
+    session = ClientSession(raise_for_status=True)
     url = "https://cloudresourcemanager.googleapis.com/v1/projects"
     qs = {'filter': parent_filter} if parent_filter else None
     _projects = await get_api_data(session, url, access_token, qs)
+    print(_projects)
     await session.close()
 
     projects = [GCPProject(p) for p in _projects]
@@ -170,6 +173,19 @@ async def get_service_projects(host_project_id: str, access_token: str, session:
     return _
 
 
+async def get_host_project(project_id: str, access_token: str, session: ClientSession = None) -> str:
+    """
+    Given a project id, get the host network project ID
+    """
+    _session = session if session else ClientSession(raise_for_status=True)
+    url = f"/compute/v1/projects/{project_id}/getXpnHost"
+    _resources = await get_api_data(_session, url, access_token)
+    if not session:
+        await _session.close()
+    if len(_resources) == 1:
+        return _resources[0]['name']
+
+
 async def get_service_usage(parent: dict, access_token: str, session: ClientSession = None) -> list:
     """
     Get Service Usage of an org, folder, or project
@@ -205,7 +221,7 @@ async def get_networks(project_id: str, access_token: str, session: ClientSessio
         network = Network(_network)
         #subnet_regions = collections.Counter([s.split('/')[-3] for s in subnetworks])
         networks.append(network)
-    #networks = sorted(networks, key=lambda n: n['num_subnetworks'], reverse=True)
+    networks = sorted(networks, key=lambda n: n.num_subnets, reverse=True)
     return networks
 
 
@@ -225,19 +241,17 @@ async def get_subnets(project_id: str, access_token: str, session: ClientSession
             urls = [f"/compute/v1/projects/{project_id}/regions/{r}/subnetworks" for r in regions]
     else:
         urls = [f"/compute/v1/projects/{project_id}/aggregated/subnetworks"]
-    #print(urls)
     tasks = [get_api_data(_session, url, access_token) for url in urls]
     _results = await gather(*tasks)
+    if not session:
+        await _session.close()
     _results = [item for items in _results for item in items]
     subnets = []
     for _subnet in _results:
         subnet = Subnet(_subnet)
         #subnet_regions = collections.Counter([s.split('/')[-3] for s in subnetworks])
         subnets.append(subnet)
-
-    if not session:
-        await _session.close()
-
+    subnets = sorted(subnets, key=lambda x: x.creation, reverse=True)
     return subnets
 
 
@@ -252,7 +266,6 @@ async def get_subnet_iam_bindings(subnets: list[Subnet], access_token: str, sess
     #print(_results)
 
 
-
 async def get_subnet_iam_binding(subnet_id: str, access_token: str, session: ClientSession = None) -> list:
     """
     Get list of Compute Network uses on a given subnet
@@ -260,12 +273,11 @@ async def get_subnet_iam_binding(subnet_id: str, access_token: str, session: Cli
     subnet_id.replace('https://www.googleapis.com/compute/v1/', "")  # don't need/want full URL
     _session = session if session else ClientSession(raise_for_status=True)
     url = f"/compute/v1/{subnet_id}/getIamPolicy?optionsRequestedPolicyVersion=1"
-    #qs = {'optionsRequestedPolicyVersion': 1}
     members = []
     _ = await get_api_data(_session, url, access_token, items_key="bindings")
     for binding in _:
         if binding.get('role') == "roles/compute.networkUser":
-            members.extend(binding.get('members', []))
+            members.extend([member for member in binding.get('members', []) if not member.startswith('deleted')])
     if not session:
         await _session.close()
     return members
@@ -301,3 +313,49 @@ async def get_gke_clusters(project_id: str, access_token: str, session: ClientSe
     _ = [GKECluster(item) for item in _results]
     #print(project_id, _)
     return _
+
+
+async def get_forwarding_rules(project_id: str, access_token: str, session: ClientSession = None) -> list:
+
+    from gcp_classes import ForwardingRule
+
+    _session = session if session else ClientSession(raise_for_status=True)
+    forwarding_rules = []
+    urls = [
+        f"/compute/v1/projects/{project_id}/aggregated/forwardingRules",
+        f"/compute/v1/projects/{project_id}/global/forwardingRules",
+    ]
+    tasks = [get_api_data(_session, url, access_token) for url in urls]
+    _results = await gather(*tasks)
+    for result in _results:
+        print(result)
+        if isinstance(result, list):
+            _results = [item for items in _results for item in items ]
+        _ = [ForwardingRule(item) for item in _results if item]
+        forwarding_rules.extend(_)
+    """
+    _results = await get_api_data(_session, url, access_token) for url in urls]
+    for result in _results:
+        if isinstance(result, list):
+            _ = [ForwardingRule(item) for item in _results if item]
+            forwarding_rules.extend(_)
+        else:
+            forwarding_rules.append(ForwardingRule(result))
+    #print(project_id, forwarding_rules)
+    url = f"/compute/v1/projects/{project_id}/global/forwardingRules"
+    _results = await get_api_data(_session, url, access_token)
+    for result in _results:
+        if isinstance(result, list):
+            _ = [ForwardingRule(item) for item in _results if item]
+            forwarding_rules.extend(_)
+        else:
+            forwarding_rules.append(ForwardingRule(result))
+
+    #_results = await get_api_data(_session, url, access_token)
+    #_results = [item for items in _results for item in items if item]
+    #forwarding_rules.extend([ForwardingRule(item) for item in _results if item])
+    """
+    if not session:
+        print("CLOSED SESSION")
+        await _session.close()
+    return forwarding_rules

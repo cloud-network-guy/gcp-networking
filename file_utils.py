@@ -219,12 +219,16 @@ async def get_version(request: dict) -> dict:
     try:
         server = request.get('server', ('localhost', 80))
         _ = {
-            'os': f"{platform.system()} {platform.release()}",
             'cpu': platform.machine(),
             'versions': {
                 'python': str(sys.version).split()[0],
-                'aiohttp': aiohttp.__version__,
+                'yaml': yaml.__version__,
+                'tomli': tomli.__version__,
+                'json': json.__version__,
                 'google_auth': google.auth.__version__,
+                #'cryptography': cryptography.__version__,
+                #'openpyxl':  openpyxl.__version__,
+                'os': f"{platform.system()} {platform.release()}",
             },
             'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
             'server_hostname': server[0],

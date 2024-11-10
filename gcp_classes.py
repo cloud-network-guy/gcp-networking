@@ -41,16 +41,35 @@ class GCPProject:
         from gcp_utils import get_instances
 
         _session = session if session else ClientSession(raise_for_status=False)
-        self.instances = await get_instances(self.id, access_token, _session)
-        if not session:
+        try:
+            self.instances = await get_instances(self.id, access_token, _session)
+        except Exception as e:
             await _session.close()
+            raise e
 
     async def get_gke_clusters(self, access_token: str, session: ClientSession = None):
 
         from gcp_utils import get_gke_clusters
 
         _session = session if session else ClientSession(raise_for_status=False)
-        self.gke_clusters = await get_gke_clusters(self.id, access_token, _session)
+        try:
+            self.gke_clusters = await get_gke_clusters(self.id, access_token, _session)
+        except Exception as e:
+            await _session.close()
+            raise e
+        if not session:
+            await _session.close()
+
+    async def get_forwarding_rules(self, access_token: str, session: ClientSession = None):
+
+        from gcp_utils import get_forwarding_rules
+
+        _session = session if session else ClientSession(raise_for_status=False)
+        try:
+            self.forwarding_rules = await get_forwarding_rules(self.id, access_token, _session)
+        except Exception as e:
+            await _session.close()
+            raise e
         if not session:
             await _session.close()
 
@@ -176,25 +195,33 @@ class Subnet(GCPNetworkItem):
 
         super().__init__(item)
 
-        self.purpose = item.get('purpose', "UNKNOWN")
+        self.purpose = item.get('purpose', "UNKNOWN").upper()
+        self.is_private = True if self.purpose == 'PRIVATE' else False
         if cidr_range := item.get('ipCidrRange'):
             self.cidr_range = cidr_range
             self.usable_ips = (2 ** (32 - int(cidr_range.split('/')[-1]))) - 4
             self.used_ips = 2
         self.members = None
         self.attached_projects = None
+        self.active_projects = None
         self.key = f"{self.project_id}/{self.region}/{self.name}"
         self.subnet_key = self.key
 
-    async def get_bindings(self, access_token: str, session: ClientSession = None):
+    async def get_bindings(self, access_token: str, session: ClientSession = None) -> None:
 
         from gcp_utils import get_subnet_iam_binding
 
         _session = session if session else ClientSession(raise_for_status=True)
-        self.members = await get_subnet_iam_binding(self.id, access_token, _session)
+        if self.is_private:
+            self.members = await get_subnet_iam_binding(self.id, access_token, _session)
         if not session:
             await _session.close()
 
+    async def set_actvie_projects(self, projects: list = None) -> None:
+        
+        if not self.active_projects:
+            self.active_projects = []
+        self.active_projects = self.active_projects.extend(set([p for p in projects if not (p in self.active_projects)]))
 
 class CloudRouter(GCPNetworkItem):
 

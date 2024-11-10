@@ -4,7 +4,7 @@ from ipaddress import IPv4Address
 from asyncio import run, gather
 from aiohttp import ClientSession
 from file_utils import get_settings, write_to_excel, get_calls
-from gcp_utils import get_access_token, get_projects, get_api_data
+from gcp_utils import get_access_token, get_projects, get_api_data, get_instances
 from gcp_classes import Instance, ForwardingRule, CloudRouter, GKECluster, CloudSQL
 
 CALLS = ('instances', 'forwarding_rules', 'cloud_routers', 'gke_clusters')
@@ -30,14 +30,20 @@ async def main():
     ip_addresses = []
 
     session = ClientSession(raise_for_status=False)
-
-    print("Getting GCE Instance IPs...")
+    """"
     call = calls.get('instances').get('calls')[0]
     urls = [f"/compute/v1/projects/{project.id}/{call}" for project in projects]
     tasks = [get_api_data(session, url, access_token) for url in urls]
     results = await gather(*tasks)
     _ = [item for items in results for item in items]  # Flatten results
     instances = [Instance(_) for _ in _]
+    """
+    print("Getting GCE Instance IPs...")
+    tasks = [p.get_instances(access_token) for p in projects]
+    _ = await gather(*tasks)
+    instances = []
+    for p in projects:
+        instances.extend(p.instances)
     for instance in instances:
         for nic in instance.nics:
             _ = {k: getattr(instance, k) for k in ('name', 'project_id', 'region')}
@@ -57,6 +63,7 @@ async def main():
                 ip_addresses.append(_)
 
     print("Getting Forwarding_rules...")
+
     urls = []
     _ = calls.get('forwarding_rules').get('calls')
     for call in _:
@@ -65,6 +72,14 @@ async def main():
     results = await gather(*tasks)
     _ = [item for items in results for item in items]  # Flatten results
     forwarding_rules = [ForwardingRule(_) for _ in _]
+    
+    """
+    tasks = [p.get_forwarding_rules(access_token) for p in projects]
+    _ = await gather(*tasks)
+    forwarding_rules = []
+    for p in projects:
+        forwarding_rules.extend(p.forwarding_rules)
+    """
     for forwarding_rule in forwarding_rules:
         _ = {k: getattr(forwarding_rule, k) for k in ('name', 'project_id', 'region', 'network_key')}
         _.update({
