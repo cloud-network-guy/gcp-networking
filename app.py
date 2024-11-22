@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 #from fastapi.encoders import jsonable_encoder
 #from typing import Optional
 
-from file_utils import get_version, get_settings, get_profile, apply_filter
+from file_utils import *
 from gcp_utils import *
 
 RESPONSE_HEADERS = {'Cache-Control': "no-cache, no-store", 'Pragma': "no-cache"}
@@ -17,11 +17,11 @@ PLAIN_CONTENT_TYPE = "text/plain"
 app = FastAPI()
 
 
-@app.get("/version")
+@app.get("/platform")
 async def _version(request: Request):
 
     try:
-        _ = await get_version(request)
+        _ = await get_platform_info(request)
         return JSONResponse(content=_, headers=RESPONSE_HEADERS)
     except Exception as e:
         return PlainTextResponse(content=format_exc(), status_code=500)

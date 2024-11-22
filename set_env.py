@@ -28,15 +28,21 @@ def get_environments(input_file: str = ENVIRONMENTS_FILE) -> dict:
 def set_environment(key_file: str) -> str:
     
     key_path = path.realpath(path.join(PWD, key_file))
-    print(key_path)
+    print("Attempting auth using JSON Key file:", key_path)
     assert path.exists(key_path), f"File '{key_path}' does not exist"
     assert path.isfile(key_path), f"File '{key_path}' is not a file"
 
     with open(key_path, mode="rb") as fp:
         key_json = json.load(fp)
-    if client_email := key_json.get('client_email'):
-        system(f"gcloud auth activate-service-account {client_email} --key-file=\"{key_path}\"")
-        environ.update({ADC_VAR: key_path})
+    fields = {k: v for k, v in key_json.items() if k in ('project_id', 'client_email')}
+    print(fields)
+    if project_id := fields.get('project_id'):
+        system(f"gcloud config set project {project_id}")
+        if client_email := fields.get('client_email'):
+            #system(f"gcloud auth login --cred-file=\"{key_path}\"")
+            system(f"gcloud auth activate-service-account {client_email} --key-file=\"{key_path}\"")
+            environ.update({ADC_VAR: key_path})
+            system(f"gcloud auth application-default set-quota-project {project_id}")
     else:
         raise KeyError(f"Could not find key 'client_mail' in JSON file '{key_path}'")
 

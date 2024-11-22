@@ -5,8 +5,6 @@ import tomli
 import tomli_w
 import csv
 import os
-import platform
-import pathlib
 
 ENCODING = 'utf-8'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
@@ -17,6 +15,8 @@ CALLS_FILE = 'calls.toml'
 
 def get_home_dir() -> str:
 
+    import platform 
+    
     if my_os := platform.system().lower():
         if my_os.startswith("win"):
             home_dir = os.environ.get("USERPROFILE")
@@ -207,33 +207,28 @@ async def get_profiles(profiles_file: str = PROFILES_FILE) -> dict:
     return _
 
 
-async def get_version(request: dict) -> dict:
+async def get_platform_info(request: dict) -> dict:
 
     """
     Get generic information about the VM, Container, or Serverless platform we're running on
     """
 
     import google.auth
-    import aiohttp
+    import platform
+    import distro
 
-    try:
-        server = request.get('server', ('localhost', 80))
-        _ = {
-            'cpu': platform.machine(),
-            'versions': {
-                'python': str(sys.version).split()[0],
-                'yaml': yaml.__version__,
-                'tomli': tomli.__version__,
-                'json': json.__version__,
-                'google_auth': google.auth.__version__,
-                #'cryptography': cryptography.__version__,
-                #'openpyxl':  openpyxl.__version__,
-                'os': f"{platform.system()} {platform.release()}",
-            },
-            'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
-            'server_hostname': server[0],
-            'server_port': server[1],
-        }
-        return _
-    except Exception as e:
-        raise e
+    distro_info: dict = distro.info()
+    server: tuple = request.get('server', ('localhost', 80))
+    _ = {
+        'distro_id': distro_info.get('id', "UNKNOWN"),
+        'distro_version': distro_info.get('version', "UNKNOWN"),
+        'platform_machine': platform.machine(),
+        'platform_system': platform.system(),
+        'python_version': str(sys.version).split()[0],
+        'google_auth_version': google.auth.__version__,
+        'kernel_version': platform.release(),
+        'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
+        'server_hostname': server[0],
+        'server_port': server[1],
+    }
+    return _
