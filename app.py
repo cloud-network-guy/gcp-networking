@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 
 from traceback import format_exc
-#from quart import Quart, jsonify, render_template, request, Response, session
-from fastapi import FastAPI, Request, Response, Form
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
-#from fastapi.encoders import jsonable_encoder
-#from typing import Optional
-
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from file_utils import *
 from gcp_utils import *
 
 RESPONSE_HEADERS = {'Cache-Control': "no-cache, no-store", 'Pragma': "no-cache"}
 PLAIN_CONTENT_TYPE = "text/plain"
 
-#app = Quart(__name__, static_url_path='/static')
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 
 
 @app.get("/platform")
-async def _version(request: Request):
+async def _platform(request: Request):
 
     try:
-        _ = await get_platform_info(request)
+        _ = await get_platform_info(dict(request))
         return JSONResponse(content=_, headers=RESPONSE_HEADERS)
     except Exception as e:
         return PlainTextResponse(content=format_exc(), status_code=500)
@@ -52,7 +52,7 @@ async def _projects():
 
 
 @app.get("/service-projects")
-async def _service_projects():
+async def _service_projects(request: Request):
 
     try:
         settings = await get_settings()
@@ -60,7 +60,7 @@ async def _service_projects():
         access_token = await get_access_token(key_file)
         host_project_id = settings.get('host_project_id')
         service_projects = await get_service_projects(host_project_id, access_token)
-        options = request.args
+        options = dict(request.query_params)
         if _profile := options.get('profile'):
             _ = await get_profile(settings, _profile)
             if folder_id := _.get('folder_id'):
@@ -78,32 +78,36 @@ async def _service_projects():
 
 
 @app.get("/networks")
-async def _networks():
+async def _networks(request: Request):
 
     try:
         settings = await get_settings()
         key_file = settings.get('key_file')
         access_token = await get_access_token(key_file)
-        host_project_id = settings.get('host_project_id')
-        networks = await get_networks(host_project_id, access_token)
-        networks = await apply_filter(networks, settings, request.args)
-        return JSONResponse([item.__dict__ for item in networks], headers=RESPONSE_HEADERS)
+        if host_project_id := settings.get('host_project_id'):
+            _ = await get_networks(host_project_id, access_token)
+            networks = await apply_filter(_, settings, dict(request.query_params))
+            return JSONResponse([item.__dict__ for item in networks], headers=RESPONSE_HEADERS)
+        else:
+            raise Exception(f"'host_project_id' must be defined to view networks")
     except Exception as e:
         return PlainTextResponse(content=format_exc(), status_code=500)
 
 
 @app.get("/subnets")
-async def _subnets():
+async def _subnets(request: Request):
 
     try:
         settings = await get_settings()
         key_file = settings.get('key_file')
         access_token = await get_access_token(key_file)
-        host_project_id = settings.get('host_project_id')
-        options = request.args
-        regions = [options.get('region')] if 'region' in options else options.get('regions')
-        subnets = await get_subnets(host_project_id, access_token, regions=regions)
-        subnets = await apply_filter(subnets, settings, options)
+        options = dict(request.query_params)
+        if host_project_id := settings.get('host_project_id'):
+            regions = [options.get('region')] if 'region' in options else options.get('regions')
+            _ = await get_subnets(host_project_id, access_token, regions=regions)
+            subnets = await apply_filter(_, settings, options)
+        else:
+            raise Exception(f"'host_project_id' must be defined to view networks")
         if network_name := options.get('network'):
             subnets = [s for s in subnets if s.network_name == network_name]
         tasks = [s.get_bindings(access_token) for s in subnets]
@@ -206,7 +210,7 @@ async def _empty_subnets():
 
 
 @app.get("/gke-clusters")
-async def _gke_clusters():
+async def _gke_clusters(request: Request):
 
     try:
         settings = await get_settings()
@@ -221,14 +225,14 @@ async def _gke_clusters():
         gke_clusters = []
         for p in projects:
             gke_clusters.extend(p.gke_clusters)
-        _ = await apply_filter(gke_clusters, settings, request.args)
+        _ = await apply_filter(gke_clusters, settings, dict(request.query_params))
         return JSONResponse([item.__dict__ for item in _], headers=RESPONSE_HEADERS)
     except Exception as e:
         return PlainTextResponse(content=format_exc(), status_code=500)
 
 
 @app.get("/instances")
-async def _instances():
+async def _instances(request: Request):
 
     try:
         settings = await get_settings()
@@ -246,14 +250,14 @@ async def _instances():
         instance_nics = []
         for instance in instances:
             instance_nics.extend(instance.nics)
-        instance_nics = await apply_filter(instance_nics, settings, request.args)
+        instance_nics = await apply_filter(instance_nics, settings, dict(request.query_params))
         subnet_keys = [nic.subnet_key for nic in instance_nics]
         used_subnets = {}
         for sk in subnet_keys:
             used_subnets[sk] = list(set([nic.project_id for nic in instance_nics if nic.subnet_key == sk]))
         return JSONResponse(used_subnets, headers=RESPONSE_HEADERS)
         #return return JSONResponse([item.__dict__ for item in instance_nics]), RESPONSE_HEADERS
-        
+
     except Exception as e:
         return PlainTextResponse(content=format_exc(), status_code=500)
 
@@ -270,10 +274,11 @@ async def _recent_firewall_rules():
         return PlainTextResponse(content=format_exc(), status_code=500)
 
 
-@app.get("/")
-async def _root():
+@app.get("/", response_class=HTMLResponse)
+async def _root(request: Request):
 
     try:
+        title = "Menu"
         fields = ('Option', 'Description')
         options = {
             'projects': "List all Projects",
@@ -281,19 +286,10 @@ async def _root():
             'networks': "List all VPC Networks",
             'subnets': "List all Subnetworks",
         }
-        data = []
-        for option, description in options.items():
-            data.append({
-                'Option': option,
-                'Description': description,
-            })
-        return await render_template(
-            template_name_or_list='index.html',
-            title="Menu",
-            fields=fields,
-            data=data,
+        data = [{fields[0]: k, fields[1]: v} for k, v in options.items()]
+        return templates.TemplateResponse(
+            request=request, name="index.html", context={'title': title, 'fields': fields, 'data': data}
         )
-
     except Exception as e:
         return PlainTextResponse(content=format_exc(), status_code=500)
 
@@ -302,5 +298,5 @@ if __name__ == '__main__':
 
     import uvicorn
 
-    #app.run(debug=True)
-    uvicorn.run(app, host='127.0.0.1', port=8000, reload=False, reload_delay=3)
+    uvicorn.run("app:app", host='127.0.0.1', port=8000, workers=1, reload=True, reload_delay=2)
+    #uvicorn.run(app, host='127.0.0.1', port=8000)

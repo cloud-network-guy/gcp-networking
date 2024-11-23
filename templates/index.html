@@ -34,7 +34,7 @@ tr.odd td { background-color:#f2f2f2; }
       <tr class="odd">
   {% endif %}
   {% for k in fields -%}
-      <td><a href="?{{}}">{{ row[k] }}</a></td>
+      <td><a href="?{{ k }}">{{ row[k] }}</a></td>
    {% endfor -%}
   </tr>
   {% endfor %}

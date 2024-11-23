@@ -5,6 +5,7 @@ import tomli
 import tomli_w
 import csv
 import os
+import pathlib
 
 ENCODING = 'utf-8'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
