@@ -7,10 +7,8 @@ from file_utils import get_settings, write_to_excel, get_calls
 from gcp_utils import get_access_token, get_projects, get_api_data, get_instances
 from gcp_classes import Instance, ForwardingRule, CloudRouter, GKECluster, CloudSQL
 
-CALLS = ('instances', 'forwarding_rules', 'cloud_routers', 'gke_clusters')
 COLUMNS = ('ip_address', 'type', 'project_id', 'region', 'name', 'network_key')
 SORT_COLUMN = 'ip_address'
-CSV_FILE = 'ip_addresses.csv'
 XLSX_FILE = "ip_addresses.xlsx"
 
 
@@ -22,28 +20,20 @@ async def main():
     except Exception as e:
         quit(e)
 
-    projects = await get_projects(access_token)
+    # Create Session and get all projects
+    session = ClientSession(raise_for_status=False)
+    projects = await get_projects(access_token, session=session)
     calls = await get_calls()
 
+    ip_addresses = []
     print("Gathering IP addresses across", len(projects), "projects...")
 
-    ip_addresses = []
-
-    session = ClientSession(raise_for_status=False)
-    """"
-    call = calls.get('instances').get('calls')[0]
-    urls = [f"/compute/v1/projects/{project.id}/{call}" for project in projects]
-    tasks = [get_api_data(session, url, access_token) for url in urls]
-    results = await gather(*tasks)
-    _ = [item for items in results for item in items]  # Flatten results
-    instances = [Instance(_) for _ in _]
-    """
     print("Getting GCE Instance IPs...")
-    tasks = [p.get_instances(access_token) for p in projects]
+    tasks = [project.get_instances(access_token, session=session) for project in projects]
     _ = await gather(*tasks)
     instances = []
-    for p in projects:
-        instances.extend(p.instances)
+    for project in projects:
+        instances.extend(project.instances)
     for instance in instances:
         for nic in instance.nics:
             _ = {k: getattr(instance, k) for k in ('name', 'project_id', 'region')}
@@ -63,7 +53,6 @@ async def main():
                 ip_addresses.append(_)
 
     print("Getting Forwarding_rules...")
-
     urls = []
     _ = calls.get('forwarding_rules').get('calls')
     for call in _:
@@ -73,13 +62,6 @@ async def main():
     _ = [item for items in results for item in items]  # Flatten results
     forwarding_rules = [ForwardingRule(_) for _ in _]
     
-    """
-    tasks = [p.get_forwarding_rules(access_token) for p in projects]
-    _ = await gather(*tasks)
-    forwarding_rules = []
-    for p in projects:
-        forwarding_rules.extend(p.forwarding_rules)
-    """
     for forwarding_rule in forwarding_rules:
         _ = {k: getattr(forwarding_rule, k) for k in ('name', 'project_id', 'region', 'network_key')}
         _.update({
@@ -105,7 +87,6 @@ async def main():
         project_id = router.project_id
         url = f"/compute/v1/projects/{project_id}/regions/{router.region}/routers/{router.name}/getRouterStatus"
         try:
-            #_ = await make_api_call(call, access_token)
             _ = await get_api_data(session, url, access_token)
         except:
             continue
@@ -156,19 +137,28 @@ async def main():
             })
             ip_addresses.append(_)
 
-    ip_addresses = sorted(ip_addresses, key=lambda x: IPv4Address(x.get(SORT_COLUMN, "UNKNOWN")), reverse=False)
+    # Work-around for uncaught scenarios where the IP address isn't set or value is None
+    for _ in ip_addresses:
+        if not _.get('ip_address'):
+            _.update({'ip_address': "192.0.2.0"})
+
+    print("Checkpoint for null values...")
+    ip_addresses = sorted(ip_addresses, key=lambda x: IPv4Address(x[SORT_COLUMN]), reverse=False)
     return ip_addresses
 
 
 if __name__ == "__main__":
 
+    data = run(main())
+    """
     data = []
     _ = run(main())
     for row in _:
-        data.append({k: row[k] for k in COLUMNS if row.get(k) is not None})
+        data.append({k: row[k] for k in COLUMNS if row.get(k) is not None})  # filter out values that are Nones
     del _
-    #data = sorted(data, key=lambda x: x.get(SORT_COLUMN, "UNKNOWN"), reverse=False)
+    """
     sheets = {
         'ip_addresses': {'description': "IP Addresses", 'data': data},
     }
+
     _ = run(write_to_excel(sheets, XLSX_FILE))

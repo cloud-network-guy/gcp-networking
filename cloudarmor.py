@@ -3,7 +3,8 @@
 from os import environ
 from asyncio import run, gather
 from aiohttp import ClientSession
-from file_utils import get_settings, write_to_excel, get_calls
+from itertools import chain
+from file_utils import get_settings
 from gcp_utils import get_access_token, get_projects, get_api_data
 from gcp_classes import SecurityPolicy
 
@@ -20,15 +21,15 @@ async def main():
         project_ids = [project_id]
     else:
         projects = await get_projects(access_token)
-        project_ids = [project.id for project in projects]
+        project_ids = [p.id for p in projects]
 
     policies = []
     session = ClientSession(raise_for_status=False)
     try:
-        urls = [f"/compute/v1/projects/{pid}/global/securityPolicies" for pid in project_ids]
+        urls = [f"/compute/v1/projects/{p}/global/securityPolicies" for p in project_ids]
         tasks = [get_api_data(session, url, access_token) for url in urls]
         results = await gather(*tasks)
-        results = [item for items in results for item in items]  # Flatten results
+        results = [item for item in list(chain(*results)) if item]
         for item in results:
             _ = SecurityPolicy(item)
             policies.append(_)

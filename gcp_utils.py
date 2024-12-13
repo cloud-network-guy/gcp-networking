@@ -112,18 +112,19 @@ async def get_api_data(session: ClientSession, url: str, access_token: str, para
     return data
 
 
-async def get_projects(access_token: str, parent_filter: str = None, state: str = None, sort_by: str = None) -> list:
+async def get_projects(access_token: str, parent_filter: str = None, state: str = None, sort_by: str = None, session: ClientSession = None) -> list:
     """
     Get list of all projects
     """
     from gcp_classes import GCPProject
 
-    session = ClientSession(raise_for_status=True)
+    _session = session if session else ClientSession(raise_for_status=True)
     url = "https://cloudresourcemanager.googleapis.com/v1/projects"
     qs = {'filter': parent_filter} if parent_filter else None
-    _projects = await get_api_data(session, url, access_token, qs)
-    print(_projects)
-    await session.close()
+    _projects = await get_api_data(_session, url, access_token, qs)
+    #print(_projects)
+    if not session:
+        await _session.close()
 
     projects = [GCPProject(p) for p in _projects]
     if state:

@@ -15,8 +15,7 @@ COPY settings.yaml $APP_DIR/
 COPY static/ $APP_DIR/static/
 COPY templates/ $APP_DIR/templates/
 COPY *.json /opt/private/gcp_keys/
-#CMD ["pip", "list"]
-#ENTRYPOINT cd $APP_DIR && hypercorn -b 0.0.0.0:$PORT -w 1 --access-logfile '-' $APP_APP
-ENTRYPOINT cd $APP_DIR && uvicorn $APP_APP --app-dir $APP_DIR --host 0.0.0.0 --port $PORT
+CMD ["pip", "list"]
+#ENTRYPOINT cd $APP_DIR && uvicorn $APP_APP --app-dir $APP_DIR --host 0.0.0.0 --port $PORT
 EXPOSE $PORT
 

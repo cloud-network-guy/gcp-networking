@@ -301,7 +301,10 @@ class ForwardingRule(GCPNetworkItem):
 
         super().__init__(item)
 
-        self.ip_address = item.get('IPAddress', "UNKNOWN")
+        self.ip_address = None
+        if ip_address := item.get('IPAddress'):
+            if not ":" in ip_address:
+                self.ip_address = ip_address
         self.lb_scheme = item.get('loadBalancingScheme', "UNKNOWN").upper()
         self.is_internal = True if self.lb_scheme.startswith("INTERNAL") else False
         self.is_external = True if self.lb_scheme.startswith("EXTERNAL") else False
@@ -381,8 +384,6 @@ class Instance(GCPItem):
 
         # Information about the instance
         self.name = item.get('name')
-        #self.zone = item.get('zone', "unknown-0").split('/')[-1]
-        #self.region = self.zone[:-2]
         self.machine_type = item.get('machineType', "unknown/unknown").split('/')[-1]
         self.ip_forwarding = item.get('canIpForward', False)
         self.status = item.get('status', "UNKNOWN")
@@ -415,7 +416,11 @@ class InstanceNic(GCPNetworkItem):
             for access_config in access_configs:
                 self.access_config_name = access_config.get('name', "UNKNOWN")
                 self.access_config_type = access_config.get('type', "UNKNOWN")
-                self.external_ip_address = access_config.get('natIP', "UNKNOWN")
+                if nat_ip := access_config.get('natIP'):
+                    if ":" in nat_ip:
+                        raise f"IPv6 IP detected: {item}"
+                    else:
+                        self.external_ip_address = nat_ip
 
 
 class SSLCert(GCPNetworkItem):
