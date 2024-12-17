@@ -118,7 +118,7 @@ async def main():
                 await gather(*tasks)
         except Exception as e:
             await storage.close()
-            raise e
+            raise RuntimeError(e)
     print("writing to bucket took", round(time() - start, 3), "seconds")
 
     return {k: v.get('data') for k, v in projects.items()}

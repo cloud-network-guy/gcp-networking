@@ -45,7 +45,8 @@ class GCPProject:
             self.instances = await get_instances(self.id, access_token, _session)
         except Exception as e:
             await _session.close()
-            raise e
+        if not session:
+            await _session.close()
 
     async def get_gke_clusters(self, access_token: str, session: ClientSession = None):
 
@@ -56,7 +57,6 @@ class GCPProject:
             self.gke_clusters = await get_gke_clusters(self.id, access_token, _session)
         except Exception as e:
             await _session.close()
-            raise e
         if not session:
             await _session.close()
 
@@ -69,7 +69,6 @@ class GCPProject:
             self.forwarding_rules = await get_forwarding_rules(self.id, access_token, _session)
         except Exception as e:
             await _session.close()
-            raise e
         if not session:
             await _session.close()
 

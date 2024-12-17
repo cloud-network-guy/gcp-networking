@@ -127,4 +127,4 @@ if __name__ == "__main__":
     try:
         _ = run(main())
     except Exception as e:
-        raise e
+        raise RuntimeError(e)

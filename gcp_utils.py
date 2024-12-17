@@ -22,7 +22,7 @@ async def get_project_from_account_key(key_file: str) -> dict:
     _ = await read_data_file(key_file, "json")
     if project_id := _.get('project_id'):
         return project_id
-    raise f"project_id not found in JSON key file: '{key_file}'"
+    raise KeyError(f"project_id not found in JSON key file: '{key_file}'")
 
 
 async def get_access_token(key_file: str = None, quota_project_id: str = None) -> str:
@@ -107,7 +107,7 @@ async def get_api_data(session: ClientSession, url: str, access_token: str, para
                 else:
                     break
     except Exception as e:
-        raise e
+        raise RuntimeWarning(e)
 
     return data
 
@@ -157,7 +157,7 @@ async def get_project(project_id: str, access_token: str, parent_filter: dict = 
         project = GCPProject(_project[0])
         return project.__dict__
     except Exception as e:
-        raise e
+        raise KeyError(e)
 
 
 async def get_service_projects(host_project_id: str, access_token: str, session: ClientSession = None) -> list:

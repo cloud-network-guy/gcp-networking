@@ -34,7 +34,7 @@ async def main():
             _ = SecurityPolicy(item)
             policies.append(_)
     except Exception as e:
-        raise e
+        raise RuntimeError(e)
     await session.close()
     return policies
 

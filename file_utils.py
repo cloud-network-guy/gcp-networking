@@ -80,7 +80,7 @@ async def read_data_file(file_name: str, file_format: str = None) -> dict:
 
     if p := pathlib.Path(file_name):
         if not p.is_file():
-            raise f"{file_name} not a valid file"
+            open(p, 'a').close()  # Create an empty file
         if p.stat().st_size == 0:
             return {}  # File exists, but is empty
     else:

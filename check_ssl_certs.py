@@ -163,4 +163,4 @@ if __name__ == "__main__":
         _ = run(main())
         [pprint(cert) for cert in _]
     except Exception as e:
-        raise e
+        raise RuntimeError(e)
