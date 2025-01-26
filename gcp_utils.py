@@ -13,7 +13,7 @@ SERVICE_USAGE_PARENTS = {'org_id': "organisations", 'folder_id': "folders", 'pro
 PWD = os.path.realpath(os.path.dirname(__file__))
 
 
-async def get_project_from_account_key(key_file: str) -> dict:
+async def get_project_from_account_key(key_file: str) -> str:
     """
     Get the Project ID of a service account key file
     """
