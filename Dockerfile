@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.13-alpine
 WORKDIR /tmp
 COPY ./requirements.txt ./
 RUN pip install --upgrade pip
@@ -15,6 +15,6 @@ COPY static/ $APP_DIR/static/
 COPY templates/ $APP_DIR/templates/
 COPY *.json /opt/private/gcp_keys/
 #CMD ["pip", "list"]
-ENTRYPOINT cd $APP_DIR && uvicorn $APP_APP --app-dir $APP_DIR --host 0.0.0.0 --port $PORT
+ENTRYPOINT cd $APP_DIR && uvicorn $APP_APP --host 0.0.0.0 --port $PORT
 EXPOSE $PORT
 
