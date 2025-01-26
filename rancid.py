@@ -5,9 +5,9 @@ from time import time
 from gcloud.aio.storage import Storage
 from asyncio import run, gather
 from aiohttp import ClientSession
-from file_utils import get_settings, write_to_excel, get_calls
-from gcp_utils import get_access_token, get_projects, get_api_data
-from gcp_classes import Instance, ForwardingRule, CloudRouter, GKECluster
+from file_utils import get_settings, get_calls, write_file, write_data_file
+from gcp_utils import get_access_token, get_projects, get_api_data, get_project_from_account_key
+#from gcp_classes import Instance, ForwardingRule, CloudRouter, GKECluster
 
 
 async def main():
@@ -25,12 +25,14 @@ async def main():
             if auth_files := env_settings.get('auth_files'):
                 for auth_file in auth_files:
                     key_file = f"{key_dir}/{auth_file}"
-                    sa_key = await read_service_account_key(key_file)
-                    project_id = sa_key.get('project_id')
+                    #sa_key = await read_service_account_key(key_file)
+                    #project_id = sa_key.get('project_id')
+                    project_id = await get_project_from_account_key(key_file)
+                    access_token = await get_access_token(settings.get('key_file'))
                     projects.update({project_id: {
                         'environment_key': environment_key,
                         'key_file': key_file,
-                        'access_token': sa_key.get('access_token'),
+                        'access_token': access_token,
                         'bucket_name': env_settings.get('bucket_name'),
                         'bucket_prefix': env_settings.get('bucket_prefix', ""),
                     }})
@@ -39,8 +41,7 @@ async def main():
     else:
         try:
             # Try to Authenticate via ADCs
-            access_token = await get_adc_token()
-            #project_ids = await get_project_ids(access_token)
+            access_token = await get_access_token()
             projects = await get_projects(access_token)
             projects = {project.id: {'access_token': access_token} for project in projects}   # Use same token for all projects
         except Exception as e:
@@ -59,6 +60,7 @@ async def main():
 
     tasks = []
     urls = []
+    session = ClientSession(raise_for_status=False)
     for project in projects.values():
         access_token = project.get('access_token')
         _ = project.get('urls', [])
@@ -68,6 +70,8 @@ async def main():
 
     # Make the API calls
     raw_data = await gather(*tasks)
+    await session.close()
+
     data_by_url = dict(zip(urls, raw_data))
     del raw_data
 
@@ -90,6 +94,7 @@ async def main():
         for k in calls.keys():
             file_name = f'{project_id}/{k}.{file_format}'
             data = project['data'][k]
+            #tasks.append(write_data_file(file_name, data))
             tasks.append(write_data_file(file_name, data))
     await gather(*tasks)
 
