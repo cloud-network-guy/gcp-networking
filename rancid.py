@@ -29,13 +29,15 @@ async def main():
                     #project_id = sa_key.get('project_id')
                     project_id = await get_project_from_account_key(key_file)
                     access_token = await get_access_token(settings.get('key_file'))
-                    projects.update({project_id: {
-                        'environment_key': environment_key,
-                        'key_file': key_file,
-                        'access_token': access_token,
-                        'bucket_name': env_settings.get('bucket_name'),
-                        'bucket_prefix': env_settings.get('bucket_prefix', ""),
-                    }})
+                    projects.update({
+                        project_id: {
+                            'environment_key': environment_key,
+                            'key_file': key_file,
+                            'access_token': access_token,
+                            'bucket_name': env_settings.get('bucket_name'),
+                            'bucket_prefix': env_settings.get('bucket_prefix', ""),
+                        }
+                    })
             else:
                 projects = []
     else:
@@ -118,7 +120,7 @@ async def main():
                     bucket=bucket_name,
                     object_name=k,
                     file_data=yaml.dump(v),
-                    content_type="text/plain",
+                    content_type="text/yaml",
                 ) for k, v in storage_objects.items()]
                 await gather(*tasks)
         except Exception as e:

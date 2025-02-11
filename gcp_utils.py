@@ -1,4 +1,4 @@
-import os
+from os.path import join, realpath, dirname, exists
 from urllib import parse
 from asyncio import gather
 import google.auth
@@ -10,7 +10,7 @@ from gcp_classes import Network, Subnet
 
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 SERVICE_USAGE_PARENTS = {'org_id': "organisations", 'folder_id': "folders", 'project_id': "projects"}
-PWD = os.path.realpath(os.path.dirname(__file__))
+PWD = realpath(dirname(__file__))
 
 
 async def get_project_from_account_key(key_file: str) -> str:
@@ -31,8 +31,8 @@ async def get_access_token(key_file: str = None, quota_project_id: str = None) -
     """
     if key_file:
         # Convert relative to full path
-        key_file = os.path.join(PWD, key_file)
-        assert os.path.exists(key_file), f"JSON key file not found: '{key_file}'"
+        key_file = realpath(join(PWD, key_file))
+        assert exists(key_file), f"JSON key file not found: '{key_file}'"
         credentials = service_account.Credentials.from_service_account_file(key_file, scopes=SCOPES)
     else:
         # Authenticate via ADC

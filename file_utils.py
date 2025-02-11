@@ -1,11 +1,14 @@
-import sys
+from sys import version
+from os import environ, makedirs
+from os.path import join, realpath, exists
+from pathlib import Path
+import platform
+import csv
 import json
 import yaml
 import tomli
 import tomli_w
-import csv
-import os
-import pathlib
+
 
 ENCODING = 'utf-8'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
@@ -16,24 +19,20 @@ CALLS_FILE = 'calls.toml'
 
 def get_home_dir() -> str:
 
-    import platform
-
     my_os = platform.system().lower()
     if my_os.startswith("win"):
-        home_dir = os.environ.get("USERPROFILE")
+        home_dir = environ.get("USERPROFILE")
     else:
-        home_dir = os.environ.get("HOME")
+        home_dir = environ.get("HOME")
     return home_dir
 
 
 def get_docs_dir() -> str:
 
-    import platform
-
     home_dir = get_home_dir()
     my_os = platform.system().lower()
     docs_dir = "Documents" if my_os.startswith("darwin") or my_os.startswith("win") else ""
-    _ = os.path.join(home_dir, docs_dir)
+    _ = realpath(join(home_dir, docs_dir))
     return _
 
 async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row: int = 1):
@@ -87,7 +86,7 @@ async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row:
 
 async def read_data_file(file_name: str, file_format: str = None) -> dict:
 
-    if p := pathlib.Path(file_name):
+    if p := Path(file_name):
         if not p.is_file():
             open(p, 'a').close()  # Create an empty file
         if p.stat().st_size == 0:
@@ -120,7 +119,7 @@ async def write_data_file(file_name: str, file_contents: any = None, file_format
         file_format = file_name.split('.')[-1].lower()
     """
 
-    p = pathlib.Path(file_name)
+    p = Path(file_name)
     if not file_format:
         file_format = p.suffix.replace('.', '').lower()
 
@@ -149,8 +148,8 @@ async def write_file(file_name: str, file_contents: any = None, file_format: str
 
     if '/' in file_name:
         sub_dir = file_name.split('/')[0]
-        if not os.path.exists(sub_dir):
-            os.makedirs(sub_dir)
+        if not exists(sub_dir):
+            makedirs(sub_dir)
 
     file_contents = "" if not file_contents else file_contents
     if isinstance(file_contents, bytes):
@@ -231,7 +230,7 @@ async def get_platform_info(request: dict) -> dict:
         'distro_version': distro_info.get('version', "UNKNOWN"),
         'platform_machine': platform.machine(),
         'platform_system': platform.system(),
-        'python_version': str(sys.version).split()[0],
+        'python_version': str(version).split()[0],
         'google_auth_version': google.auth.__version__,
         'kernel_version': platform.release(),
         'server_protocol': "HTTP/" + request.get('http_version', "?/?"),
