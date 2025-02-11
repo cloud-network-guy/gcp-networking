@@ -5,21 +5,25 @@ from aiohttp import ClientSession
 from file_utils import get_settings, write_to_excel, get_calls
 from gcp_utils import get_access_token, get_projects, get_api_data
 from gcp_classes import ForwardingRule, TargetProxy, SSLCert
+from itertools import chain
 
 
 async def get_forwarding_rules(project_id: str, access_token: str) -> list:
 
     results = []
     session = ClientSession(raise_for_status=False)
+
     try:
         # use aggregated call since it's the fastest
         url = f"/compute/v1/projects/{project_id}/aggregated/forwardingRules"
         _ = await get_api_data(session, url, access_token)
         results.extend(_)
     except Exception as e:
-        raise f"Error getting Forwarding Rules: {e}"
+        raise RuntimeError(f"Error getting Forwarding Rules: {e}")
+
     await session.close()
-    return results
+    #return [item for items in results for item in items]  # Flatten results
+    return list(chain(*results))
 
 
 async def get_target_https_proxies(project_id: str, access_token: str, regions: list = []) -> list:
@@ -31,11 +35,12 @@ async def get_target_https_proxies(project_id: str, access_token: str, regions: 
         urls.extend([f"/compute/v1/projects/{project_id}/regions/{region}/targetHttpsProxies" for region in regions])
         tasks = [get_api_data(session, url, access_token) for url in urls]
         results.extend(await gather(*tasks))
-        return [item for items in results for item in items]  # Flatten results
     except Exception as e:
-        raise f"Error getting Target HTTPS Proxies: {e}"
+        raise RuntimeError(f"Error getting Target HTTPS Proxies: {e}")
+
     await session.close()
-    return results
+    #return [item for items in results for item in items]  # Flatten results
+    return list(chain(*results))
 
 async def get_ssl_certs(project_id: str, access_token: str, name: str, regions: list = []) -> list:
 
@@ -47,10 +52,12 @@ async def get_ssl_certs(project_id: str, access_token: str, name: str, regions: 
             urls.append(f"/compute/v1/projects/{project_id}/regions/{region}/sslCertificates")
         tasks = [get_api_data(session, url, access_token) for url in urls]
         results.extend(await gather(*tasks))
-        return [item for items in results for item in items]  # Flatten results
     except Exception as e:
-        raise f"Error getting SSL Certs: {e}"
-    return results
+        raise RuntimeError(f"Error getting SSL Certs: {e}")
+
+    await session.close()
+    #return [item for items in results for item in items]  # Flatten results
+    return list(chain(*results))
 
 async def main() -> list:
 
@@ -62,7 +69,7 @@ async def main() -> list:
     settings = await get_settings()
     cert_issuer = settings.get('cert_issuer')
     cert_subject = settings.get('cert_subject')
-    days_threshold = settings.get('days_threshold', 14)
+    days_threshold = settings.get('days_threshold', 20)
 
     print("Getting Google ADCs...")
     access_token = await get_access_token(settings.get('key_file'))

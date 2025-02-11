@@ -16,23 +16,32 @@ CALLS_FILE = 'calls.toml'
 
 def get_home_dir() -> str:
 
-    import platform 
-    
-    if my_os := platform.system().lower():
-        if my_os.startswith("win"):
-            home_dir = os.environ.get("USERPROFILE")
-            separator = "\\Documents\\"
-        else:
-            home_dir = os.environ.get("HOME")
-            separator = "/Documents/" if my_os.startswith("darwin") else "/"
-        return home_dir + separator
+    import platform
 
+    my_os = platform.system().lower()
+    if my_os.startswith("win"):
+        home_dir = os.environ.get("USERPROFILE")
+    else:
+        home_dir = os.environ.get("HOME")
+    return home_dir
+
+
+def get_docs_dir() -> str:
+
+    import platform
+
+    home_dir = get_home_dir()
+    my_os = platform.system().lower()
+    docs_dir = "Documents" if my_os.startswith("darwin") or my_os.startswith("win") else ""
+    _ = os.path.join(home_dir, docs_dir)
+    return _
 
 async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row: int = 1):
 
     from openpyxl import Workbook, utils
 
-    output_file = f"{get_home_dir()}{file_name}"
+    _ = get_docs_dir()
+    output_file = os.path.join(_, file_name)
 
     wb = Workbook()
 
@@ -90,15 +99,14 @@ async def read_data_file(file_name: str, file_format: str = None) -> dict:
         file_format = p.suffix.replace('.', '').lower()
 
     with open(file_name, mode="rb") as fp:
-        match file_format:
-            case 'yaml':
-                return yaml.load(fp, Loader=yaml.FullLoader)
-            case 'json':
-                return json.load(fp)
-            case 'toml':
-                return tomli.load(fp)
-            case _:
-                raise f"unhandled file format '{file_format}'"
+        if file_format == 'yaml':
+            return yaml.load(fp, Loader=yaml.FullLoader)
+        elif file_format == 'json':
+            return json.load(fp)
+        elif file_format == 'toml':
+            return tomli.load(fp)
+        else:
+            raise f"unhandled file format '{file_format}'"
 
 
 async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
@@ -116,22 +124,20 @@ async def write_data_file(file_name: str, file_contents: any = None, file_format
     if not file_format:
         file_format = p.suffix.replace('.', '').lower()
 
-    match file_format:
-        case 'csv':
-            csvfile = open(file_name, 'w', newline='')
-            writer = csv.writer(csvfile)
-            writer.writerow(file_contents[0].keys())
-            [writer.writerow(row.values()) for row in file_contents]
-            csvfile.close()
-            return
-        case 'yaml':
+    if file_format == 'csv':
+        csvfile = open(file_name, 'w', newline='')
+        writer = csv.writer(csvfile)
+        writer.writerow(file_contents[0].keys())
+        [writer.writerow(row.values()) for row in file_contents]
+        csvfile.close()
+    elif file_format == 'yaml':
             _ = yaml.dump(file_contents)
-        case 'json':
+    elif file_format == 'json':
             _ = json.dumps(file_contents, indent=4)
-        case 'toml':
-            _ = tomli_w.dumps(file_contents)
-        case _:
-            raise f"unhandled file format '{file_format}'"
+    elif file_format == 'toml':
+        _ = tomli_w.dumps(file_contents)
+    else:
+        raise f"unhandled file format '{file_format}'"
 
     with open(file_name, mode="w") as fp:
         fp.write(_)

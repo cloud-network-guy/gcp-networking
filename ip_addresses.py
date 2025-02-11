@@ -41,6 +41,7 @@ async def main():
                 'ip_address': nic.ip_address,
                 'type': "GCE Instance NIC",
                 'network_key': nic.network_key,
+                'network_name': nic.network_name,
             })
             ip_addresses.append(_)
             if nic.access_config_name:
@@ -49,6 +50,7 @@ async def main():
                     'ip_address': nic.external_ip_address,
                     'type': "GCE Instance NAT IP",
                     'network_key': nic.network_key,
+                    'network_name': nic.network_name,
                 })
                 ip_addresses.append(_)
 
@@ -63,7 +65,7 @@ async def main():
     forwarding_rules = [ForwardingRule(_) for _ in _]
     
     for forwarding_rule in forwarding_rules:
-        _ = {k: getattr(forwarding_rule, k) for k in ('name', 'project_id', 'region', 'network_key')}
+        _ = {k: getattr(forwarding_rule, k) for k in ('name', 'project_id', 'region', 'network_key', 'network_name')}
         _.update({
             'ip_address': forwarding_rule.ip_address,
             'type': "Forwarding Rule",
@@ -97,7 +99,7 @@ async def main():
                     nat_ips.extend(nat_status.get('autoAllocatedNatIps', []))
                     nat_ips.extend(nat_status.get('userAllocatedNatIps', []))
             for nat_ip in nat_ips:
-                _ = {k: getattr(router, k) for k in ('name', 'project_id', 'region', 'network_key')}
+                _ = {k: getattr(router, k) for k in ('name', 'project_id', 'region', 'network_key', 'network_name')}
                 _.update({
                     'ip_address': nat_ip,
                     'type': "Cloud NAT External IP",
@@ -112,7 +114,7 @@ async def main():
     gke_clusters = [GKECluster(_) for _ in _]
     for gke_cluster in gke_clusters:
         for endpoint_ip in gke_cluster.endpoint_ips:
-            _ = {k: getattr(gke_cluster, k) for k in ('name', 'project_id', 'region', 'network_key')}
+            _ = {k: getattr(gke_cluster, k) for k in ('name', 'project_id', 'region', 'network_key', 'network_name')}
             _.update({
                 'ip_address': endpoint_ip,
                 'type': "GKE Endpoint",
@@ -130,7 +132,7 @@ async def main():
 
     for cloud_sql in cloud_sqls:
         for ip_address in cloud_sql.ip_addresses:
-            _ = {k: getattr(cloud_sql, k) for k in ('name', 'project_id', 'region', 'network_key')}
+            _ = {k: getattr(cloud_sql, k) for k in ('name', 'project_id', 'region', 'network_key', 'network_name')}
             _.update({
                 'ip_address': ip_address,
                 'type': "Cloud SQL Instance",
@@ -149,7 +151,11 @@ async def main():
 
 if __name__ == "__main__":
 
+    from collections import Counter
     data = run(main())
+    ips_by_project = Counter(item['region'] for item in data)
+    print(ips_by_project)
+    #print([item for item in data if "ems" in item['project_id']])
     """
     data = []
     _ = run(main())
