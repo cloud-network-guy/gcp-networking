@@ -1,6 +1,5 @@
 from sys import version
-from os import environ, makedirs
-from os.path import join, realpath, exists
+from os import environ
 from pathlib import Path
 import platform
 import csv
@@ -29,19 +28,19 @@ def get_home_dir() -> str:
 
 def get_docs_dir() -> str:
 
-    home_dir = get_home_dir()
+    home_dir = Path(get_home_dir())
     my_os = platform.system().lower()
     docs_dir = "Documents" if my_os.startswith("darwin") or my_os.startswith("win") else ""
-    _ = realpath(join(home_dir, docs_dir))
+    _ = home_dir.joinpath(docs_dir)
     return _
 
 async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row: int = 1):
 
     from openpyxl import Workbook, utils
 
-    _ = get_docs_dir()
-    output_file = os.path.join(_, file_name)
-
+    _ = Path(get_docs_dir())
+    #output_file = os.path.join(_, file_name)
+    output_file = _.joinpath(file_name)
     wb = Workbook()
 
     for k, v in sheets.items():
@@ -119,9 +118,9 @@ async def write_data_file(file_name: str, file_contents: any = None, file_format
         file_format = file_name.split('.')[-1].lower()
     """
 
-    p = Path(file_name)
     if not file_format:
-        file_format = p.suffix.replace('.', '').lower()
+        _ = Path(file_name)
+        file_format = _.suffix.replace('.', '').lower()
 
     if file_format == 'csv':
         csvfile = open(file_name, 'w', newline='')
@@ -147,9 +146,10 @@ async def write_file(file_name: str, file_contents: any = None, file_format: str
     import aiofiles
 
     if '/' in file_name:
-        sub_dir = file_name.split('/')[0]
-        if not exists(sub_dir):
-            makedirs(sub_dir)
+        sub_dir = Path(file_name.split('/')[0])
+        sub_dir.mkdir(parents=True, exist_ok=True)
+        #if not exists(sub_dir):
+        #    makedirs(sub_dir)
 
     file_contents = "" if not file_contents else file_contents
     if isinstance(file_contents, bytes):
@@ -220,7 +220,6 @@ async def get_platform_info(request: dict) -> dict:
     """
 
     import google.auth
-    import platform
     import distro
 
     distro_info: dict = distro.info()
