@@ -16,23 +16,22 @@ PROFILES_FILE = 'profiles.toml'
 CALLS_FILE = 'calls.toml'
 
 
-def get_home_dir() -> str:
+def get_home_dir(os: str = None) -> str:
 
-    my_os = platform.system().lower()
-    if my_os.startswith("win"):
-        home_dir = environ.get("USERPROFILE")
-    else:
-        home_dir = environ.get("HOME")
-    return home_dir
+    os = platform.system() if not os else os
+    home_dir_key = "USERPROFILE" if os.lower().startswith("win") else "HOME"
+    _ = environ.get(home_dir_key)
+    return _
 
 
 def get_docs_dir() -> str:
 
-    home_dir = Path(get_home_dir())
-    my_os = platform.system().lower()
+    my_os = platform.system()
+    home_dir = Path(get_home_dir(my_os))
     docs_dir = "Documents" if my_os.startswith("darwin") or my_os.startswith("win") else ""
     _ = home_dir.joinpath(docs_dir)
     return _
+
 
 async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row: int = 1):
 
@@ -108,15 +107,6 @@ async def read_data_file(file_name: str, file_format: str = None) -> dict:
 
 
 async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
-
-    """
-    sub_dir = file_name.split('/')[0]
-    if not os.path.exists(sub_dir):
-        os.makedirs(sub_dir)
-
-    if not file_format:
-        file_format = file_name.split('.')[-1].lower()
-    """
 
     if not file_format:
         _ = Path(file_name)
