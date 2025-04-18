@@ -440,6 +440,9 @@ class SSLCert(GCPNetworkItem):
         self.type = item.get('type', "UNKNOWN")
         self.is_expired = False
         self.is_expiring_soon = False
+        self.target_proxy = None
+        for _ in ("zone", "network_project_id", "network_key", "network_name", "subnet_key", "subnet_name"):
+            setattr(self, _, None)
 
         self.issuer = "UNKNOWN"
         self.subject = "UNKNOWN"

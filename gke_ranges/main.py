@@ -10,7 +10,7 @@ import google.auth.transport.requests
 from aiohttp import ClientSession
 
 INPUT_FILE = 'pre-commercial.yaml'
-#INPUT_FILE = 'settings.yaml'
+#INPUT_FILE = 'environments.toml'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 PWD = os.path.realpath(os.path.dirname(__file__))
 

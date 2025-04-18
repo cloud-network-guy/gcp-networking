@@ -12,8 +12,10 @@ import tomli_w
 ENCODING = 'utf-8'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 SETTINGS_FILE = 'settings.yaml'
+ENVIRONMENTS_FILE = "environments.yaml"
 PROFILES_FILE = 'profiles.toml'
 CALLS_FILE = 'calls.toml'
+PWD = Path(__file__).parent
 
 
 def get_home_dir(os: str = None) -> str:
@@ -24,7 +26,7 @@ def get_home_dir(os: str = None) -> str:
     return _
 
 
-def get_docs_dir() -> str:
+def get_docs_dir() -> Path:
 
     my_os = platform.system()
     home_dir = Path(get_home_dir(my_os))
@@ -153,6 +155,15 @@ async def get_settings(settings_file: str = SETTINGS_FILE) -> dict:
     Get all settings from settings file
     """
     _ = await read_data_file(settings_file)
+    return _
+
+
+async def get_environments(input_file: str = ENVIRONMENTS_FILE) -> dict:
+    """
+    Get environments
+    """
+    environments_file = PWD.joinpath(str(input_file))
+    _ = await read_data_file(str(environments_file))
     return _
 
 

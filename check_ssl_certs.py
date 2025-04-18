@@ -127,9 +127,6 @@ async def main() -> list:
     print("Discovered", len(ssl_certs), "SSL Certificates")
 
     print(f"Getting Target HTTPS proxies for {len(project_ids)} Projects...")
-    #tasks = [get_target_https_proxies(project_id, access_token, regions_by_project[project_id]) for project_id in project_ids]
-    #results = await gather(*tasks)
-    #target_proxies = [TargetProxy(item) for items in results for item in items]
     urls = [f"/compute/v1/projects/{project_id}/global/targetHttpsProxies" for project_id in project_ids]
     for project_id in project_ids:
         for region in regions_by_project[project_id]:
@@ -153,7 +150,7 @@ async def main() -> list:
             continue  # cert expired over 1 week ago; assume we don't care
         if ssl_cert.expire_timestamp < start + days_threshold * 24 * 3600:
             k = f"{ssl_cert.project_id}/{ssl_cert.region}/{ssl_cert.name}"
-            if active_certs.get(k):
+            if k in active_certs:
                 certs_to_update.append(ssl_cert)
 
     print("Found", len(certs_to_update), "certs that expire soon.")

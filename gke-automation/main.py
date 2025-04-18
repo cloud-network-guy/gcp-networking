@@ -13,7 +13,7 @@ import google.oauth2
 import yaml
 import json
 
-SETTINGS_FILE = "./settings.yaml"
+SETTINGS_FILE = "./environments.toml"
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 COMPUTE_API_BASE = "https://www.googleapis.com/compute/v1"
 

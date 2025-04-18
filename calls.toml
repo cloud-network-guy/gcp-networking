@@ -17,6 +17,11 @@ api_name = "compute"
 calls = ["global/firewalls"]
 parse_function = "parse_firewall_rules"
 
+[disks]
+description = "GCE Disks"
+api_name = "compute"
+calls = ["aggregated/disks"]
+
 [instances]
 description = "Instances"
 api_name = "compute"
