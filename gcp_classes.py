@@ -195,17 +195,27 @@ class Subnet(GCPNetworkItem):
         super().__init__(item)
 
         self.purpose = item.get('purpose', "UNKNOWN").upper()
-        self.is_private = True if self.purpose == 'PRIVATE' else False
-        self.is_psc = True if self.purpose == 'PRIVATE_SERVICE_CONNECT' else False
-        self.is_proxy_only = True if self.purpose.endswith("_MANAGED_PROXY") or self.purpose.endswith("_LOAD_BALANCER") else False
+        self.is_private = False
+        self.is_psc = False
+        self.is_proxy_only = False
+        if self.purpose == 'PRIVATE':
+            self.is_private = True
+        if self.purpose == 'PRIVATE_SERVICE_CONNECT':
+            self.is_psc = True
+        if self.purpose.endswith("_MANAGED_PROXY") or self.purpose.endswith("_LOAD_BALANCER"):
+            self.is_proxy_only = True
+        self.cidr_range = None
         if cidr_range := item.get('ipCidrRange'):
             self.cidr_range = cidr_range
             self.usable_ips = (2 ** (32 - int(cidr_range.split('/')[-1]))) - 4
             self.used_ips = 2
         else:
-            self.cidr_range = None
             self.usable_ips = 0
             self.used_ips = 0
+        self.secondary_ranges = []
+        if ranges := item.get('secondaryIpRanges'):
+            self.secondary_ranges = [{'name': r['rangeName'], 'range': r['ipCidrRange']} for r in ranges]
+            self.secondary_ranges = sorted(self.secondary_ranges, key=lambda x: x['name'])  # Sort by range Name
         self.members = None
         self.attached_projects = None
         self.active_projects = None
@@ -222,11 +232,12 @@ class Subnet(GCPNetworkItem):
         if not session:
             await _session.close()
 
-    async def set_actvie_projects(self, projects: list = None) -> None:
+    async def set_actives_projects(self, projects: list = None) -> None:
         
         if not self.active_projects:
             self.active_projects = []
         self.active_projects = self.active_projects.extend(set([p for p in projects if not (p in self.active_projects)]))
+
 
 class CloudRouter(GCPNetworkItem):
 
@@ -492,11 +503,11 @@ class GKECluster(GCPNetworkItem):
 
         super().__init__(item)
 
+        self.id = f"{self.project_id}/{self.region}/{self.name}"
         self.kind = 'gke_cluster'
         self.current_master_version = item.get('currentMasterVersion', 'UNKNOWN')
         self.current_node_version = item.get('currentNodeVersion', "UNKNOWN")
         self.status = item.get('status', "UNKNOWN")
-
         self.master_range = None
         self.endpoint_ips = []
         if private_cluster_config := item.get('privateClusterConfig'):

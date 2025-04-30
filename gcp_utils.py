@@ -7,11 +7,10 @@ import google.auth.transport.requests
 from google.oauth2 import service_account
 from aiohttp import ClientSession
 from gcp_classes import Network, Subnet
-
+from gcp_classes import GCPProject
 
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 SERVICE_USAGE_PARENTS = {'org_id': "organisations", 'folder_id': "folders", 'project_id': "projects"}
-#PWD = realpath(dirname(__file__))
 PWD = Path(__file__).parent
 
 
@@ -33,10 +32,9 @@ async def get_access_token(key_file: str = None, quota_project_id: str = None) -
     """
     if key_file:
         # Convert relative to full path
-        #key_file = realpath(join(PWD, key_file))
         key_file = PWD.joinpath(key_file)
         assert key_file.exists(), f"JSON key file not found: '{key_file}'"
-        credentials = service_account.Credentials.from_service_account_file(key_file, scopes=SCOPES)
+        credentials = service_account.Credentials.from_service_account_file(str(key_file), scopes=SCOPES)
     else:
         # Authenticate via ADC
         credentials, project_id = google.auth.default(scopes=SCOPES, quota_project_id=quota_project_id)
@@ -115,11 +113,10 @@ async def get_api_data(session: ClientSession, url: str, access_token: str, para
     return data
 
 
-async def get_projects(access_token: str, parent_filter: str = None, state: str = None, sort_by: str = None, session: ClientSession = None) -> list:
+async def get_projects(access_token: str, parent_filter: str = None, state: str = None, sort_by: str = None, session: ClientSession = None) -> list[GCPProject]:
     """
     Get list of all projects
     """
-    from gcp_classes import GCPProject
 
     _session = session if session else ClientSession(raise_for_status=True)
     url = "https://cloudresourcemanager.googleapis.com/v1/projects"
@@ -163,7 +160,7 @@ async def get_project(project_id: str, access_token: str, parent_filter: dict = 
         raise KeyError(e)
 
 
-async def get_service_projects(host_project_id: str, access_token: str, session: ClientSession = None) -> list:
+async def get_service_projects(host_project_id: str, access_token: str, session: ClientSession = None) -> list[str]:
     """
     Given a Shared VPC host project, get list of all projects under that folder
     """
@@ -238,11 +235,7 @@ async def get_subnets(project_id: str, access_token: str, session: ClientSession
 
     _session = session if session else ClientSession(raise_for_status=True)
     if regions:
-        if len(regions) == 1:
-            region = regions[0]
-            urls = [f"/compute/v1/projects/{project_id}/regions/{region}/subnetworks"]
-        else:
-            urls = [f"/compute/v1/projects/{project_id}/regions/{r}/subnetworks" for r in regions]
+        urls = [f"/compute/v1/projects/{project_id}/regions/{r}/subnetworks" for r in regions]
     else:
         urls = [f"/compute/v1/projects/{project_id}/aggregated/subnetworks"]
     tasks = [get_api_data(_session, url, access_token) for url in urls]
@@ -253,7 +246,6 @@ async def get_subnets(project_id: str, access_token: str, session: ClientSession
     subnets = []
     for _subnet in _results:
         subnet = Subnet(_subnet)
-        #subnet_regions = collections.Counter([s.split('/')[-3] for s in subnetworks])
         subnets.append(subnet)
     subnets = sorted(subnets, key=lambda x: x.creation, reverse=True)
     return subnets
@@ -312,10 +304,7 @@ async def get_gke_clusters(project_id: str, access_token: str, session: ClientSe
     _results = await get_api_data(_session, url, access_token)
     if not session:
         await _session.close()
-    #_results = [item for items in _results for item in items]
-    #print([item.get('name') for item in _results if item])
     _ = [GKECluster(item) for item in _results]
-    #print(project_id, _)
     return _
 
 
@@ -337,29 +326,6 @@ async def get_forwarding_rules(project_id: str, access_token: str, session: Clie
             _results = [item for items in _results for item in items ]
         _ = [ForwardingRule(item) for item in _results if item]
         forwarding_rules.extend(_)
-    """
-    _results = await get_api_data(_session, url, access_token) for url in urls]
-    for result in _results:
-        if isinstance(result, list):
-            _ = [ForwardingRule(item) for item in _results if item]
-            forwarding_rules.extend(_)
-        else:
-            forwarding_rules.append(ForwardingRule(result))
-    #print(project_id, forwarding_rules)
-    url = f"/compute/v1/projects/{project_id}/global/forwardingRules"
-    _results = await get_api_data(_session, url, access_token)
-    for result in _results:
-        if isinstance(result, list):
-            _ = [ForwardingRule(item) for item in _results if item]
-            forwarding_rules.extend(_)
-        else:
-            forwarding_rules.append(ForwardingRule(result))
-
-    #_results = await get_api_data(_session, url, access_token)
-    #_results = [item for items in _results for item in items if item]
-    #forwarding_rules.extend([ForwardingRule(item) for item in _results if item])
-    """
     if not session:
-        print("CLOSED SESSION")
         await _session.close()
     return forwarding_rules

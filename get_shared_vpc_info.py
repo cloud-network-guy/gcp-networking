@@ -4,7 +4,7 @@ from file_utils import get_settings
 from gcp_utils import get_access_token, get_projects, get_host_project, get_networks, get_subnets, get_subnet_iam_binding
 
 
-async def main() -> list:
+async def main():
 
     try:
         settings = await get_settings()
@@ -13,6 +13,7 @@ async def main() -> list:
         quit(e)
 
     projects = await get_projects(access_token)
+    project_numbers_to_id = {p.number: p.id for p in projects}
 
     session = ClientSession(raise_for_status=False)
 
@@ -40,6 +41,8 @@ async def main() -> list:
     for v in subnets.values():
         all_subnets.extend(v)
 
+
+
     #subnet_bindings = {subnet.key: [] for subnet in all_subnets}
     #for host_project, subnets in subnets.items():
         #urls = [f"/compute/v1/projects/{host_project}/regions/{s.region}/subnetworks/{s.name}/getIamPolicy" for s in subnets]
@@ -57,9 +60,11 @@ async def main() -> list:
                 if s.members:
                     members.extend(s.members)
         xvpc_host_projects.update({host_project_id: members})
+    for k, v in subnet_bindings.items():
+        if v and len(v) == 0:
+            print(k, v)
 
-    print(subnet_bindings)
-    #quit()
+
     #for subnet in all_subnets:
     #    print(subnet.key)
     #    subnet.members = await get_subnet_iam_binding(subnet.id, access_token, session)
@@ -86,6 +91,7 @@ async def main() -> list:
                         xvpc_host_projects[host_project] = members
         print(_)
     """
+
     orphans = []
     service_accounts = {p.id: f"serviceAccount:{p.number}-compute@developer.gserviceaccount.com" for p in projects}
     #service_accounts = {p.id: f"serviceAccount:{p.number}@container-engine-robot.iam.gserviceaccount.com" for p in projects}
@@ -109,7 +115,6 @@ async def main() -> list:
     for orphan in orphans:
         project = [p for p in projects if p.id == orphan]
         print("orphan:", project)
-    quit()
 
     xvpc_host_projects = {}
     for project_id, result in results.items():

@@ -43,7 +43,6 @@ async def main():
     for k, call in calls.items():
         # Perform API calls
         urls = [f"/compute/v1/projects/{project.id}/{call}" for project in projects]
-        #tasks = [make_api_call(url, access_token) for url in urls]
         tasks = [get_api_data(session, url, access_token) for url in urls]
         results = await gather(*tasks)
         results = dict(zip(urls, results))
@@ -100,6 +99,8 @@ async def main():
 
     subnet_counts = []
     for subnet in network_data['subnets']:
+        if subnet.is_psc or subnet.is_proxy_only:
+            continue
         subnet_key = subnet.key
         counts = {
             'instances': [_ for _ in network_data['instance_nics'] if _.subnet_key == subnet_key],
@@ -107,8 +108,9 @@ async def main():
         }
         active_ips = len(counts['instances']) + len(counts['forwarding_rules'])
         subnet_counts.append({
-            'key': subnet.key,
+            'name': subnet.name,
             'network_name': subnet.network_name,
+            'region': subnet.region,
             'cidr_range': subnet.cidr_range,
             'usable_ips': subnet.usable_ips,
             'num_instances': len(counts['instances']),

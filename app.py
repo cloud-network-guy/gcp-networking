@@ -231,6 +231,19 @@ async def _gke_clusters(request: Request):
         return PlainTextResponse(content=format_exc(), status_code=500)
 
 
+@app.get("/gke-ranges")
+async def _gke_ranges(request: Request):
+
+    from gke_ranges import main
+
+    try:
+        _ = await main()
+        return JSONResponse(_, headers=RESPONSE_HEADERS)
+        #return JSONResponse([item.__dict__ for item in _], headers=RESPONSE_HEADERS)
+    except Exception as e:
+        return PlainTextResponse(content=format_exc(), status_code=500)
+
+
 @app.get("/instances")
 async def _instances(request: Request):
 
