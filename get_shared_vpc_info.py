@@ -118,7 +118,7 @@ async def main():
 
     xvpc_host_projects = {}
     for project_id, result in results.items():
-        if len(result) > 0:
+        if result and len(result) > 0:
             if xvpc_host_project := result[0].get('name'):
                 xvpc_host_projects.update({project_id: xvpc_host_project})
             else:

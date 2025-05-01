@@ -1,4 +1,3 @@
-#from os.path import join, realpath, dirname, exists
 from pathlib import Path
 from urllib import parse
 from asyncio import gather
@@ -6,11 +5,14 @@ import google.auth
 import google.auth.transport.requests
 from google.oauth2 import service_account
 from aiohttp import ClientSession
-from gcp_classes import Network, Subnet
+from gcloud.aio.auth import Token
+from gcloud.aio.storage import Storage
 from gcp_classes import GCPProject
+from gcp_classes import Subnet
 
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
 SERVICE_USAGE_PARENTS = {'org_id': "organisations", 'folder_id': "folders", 'project_id': "projects"}
+STORAGE_TIMEOUT = 30
 PWD = Path(__file__).parent
 
 
@@ -117,7 +119,6 @@ async def get_projects(access_token: str, parent_filter: str = None, state: str 
     """
     Get list of all projects
     """
-
     _session = session if session else ClientSession(raise_for_status=True)
     url = "https://cloudresourcemanager.googleapis.com/v1/projects"
     qs = {'filter': parent_filter} if parent_filter else None
@@ -329,3 +330,39 @@ async def get_forwarding_rules(project_id: str, access_token: str, session: Clie
     if not session:
         await _session.close()
     return forwarding_rules
+
+
+async def list_gcs_objects(bucket: str, token: Token, prefix: str = None) -> list:
+
+    objects = []
+    params = {'prefix': prefix if prefix else ""}
+    try:
+        async with Storage(token=token) as storage:
+            while True:
+                _ = await storage.list_objects(bucket, params=params, timeout=STORAGE_TIMEOUT)
+                objects.extend(_.get('items', []))
+                if next_page_token := _.get('nextPageToken'):
+                    params.update({'pageToken': next_page_token})
+                else:
+                    break
+    except Exception as e:
+        raise e
+
+    return objects
+
+
+async def get_gcs_objects(bucket: str, token: Token, objects: list = None) -> list:
+
+    """
+    Given a GCS bucket name and list of files, return the contents of the files
+    """
+    if objects is None:
+        _ = await list_gcs_objects(bucket, token)
+        objects = [o.name for o in _]
+    try:
+        async with Storage(token=token) as storage:
+            tasks = (storage.download(bucket, o, timeout=STORAGE_TIMEOUT) for o in objects)
+            _ = await gather(*tasks)
+        return list(_)
+    except Exception as e:
+        raise e

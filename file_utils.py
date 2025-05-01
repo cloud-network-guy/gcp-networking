@@ -238,3 +238,5 @@ async def get_platform_info(request: dict) -> dict:
         'server_port': server[1],
     }
     return _
+
+

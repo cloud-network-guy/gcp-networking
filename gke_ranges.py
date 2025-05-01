@@ -62,7 +62,6 @@ async def main() -> list:
                 'gke_cluster': cluster_name,
             })
     return range_data
-    return [{subnet_key: len([k for k, v in ranges.items() if v])} for subnet_key, ranges in services_ranges.items()]
 
 
 if __name__ == "__main__":
