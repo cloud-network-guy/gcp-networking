@@ -77,23 +77,7 @@ async def main():
 
     await session.close()
     print("Found", len(orphans), "orphans:", orphans)
-    #quit()
-    for orphan in orphans:
-        project = [p for p in projects if p.id == orphan]
-       # print("orphan:", project)
-    return
-    # Populate Shared VPC Host Projects
-    xvpc_host_projects = {}
-    for project_id, result in results.items():
-        print(project_id, result)
-        if result and len(result) > 0:
-            if xvpc_host_project := result[0].get('name'):
-                xvpc_host_projects.update({project_id: xvpc_host_project})
-            else:
-                print(project_id)
-        else:
-            print(project_id)
-
+    
 
 if __name__ == "__main__":
 
