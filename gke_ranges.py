@@ -25,8 +25,6 @@ async def main() -> list:
     session = ClientSession(raise_for_status=False)
     subnets = await get_subnets(host_project_id, access_token, session=session)
     subnets = [s for s in subnets if s.purpose == "PRIVATE" and len(s.secondary_ranges) > 0]
-    subnets = [s for s in subnets if s.network_name.startswith("ems")]
-    subnets = [s for s in subnets if s.region == "us-east4"]
     subnets = sorted(subnets, key=lambda x: x.key, reverse=False)
 
     subnets_by_key = {s.key: s for s in subnets}
