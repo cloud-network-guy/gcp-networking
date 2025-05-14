@@ -9,7 +9,10 @@ from fastapi.templating import Jinja2Templates
 from file_utils import *
 from gcp_utils import *
 
-RESPONSE_HEADERS = {'Cache-Control': "no-cache, no-store", 'Pragma': "no-cache"}
+RESPONSE_HEADERS = {
+    'Cache-Control': "no-cache, no-store",
+    'Pragma': "no-cache"
+}
 PLAIN_CONTENT_TYPE = "text/plain"
 
 app = FastAPI()

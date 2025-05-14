@@ -11,8 +11,13 @@ from gcp_classes import GCPProject
 from gcp_classes import Subnet
 
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
-SERVICE_USAGE_PARENTS = {'org_id': "organisations", 'folder_id': "folders", 'project_id': "projects"}
+SERVICE_USAGE_PARENTS = {
+    'org_id': "organisations",
+    'folder_id': "folders",
+    'project_id': "projects",
+}
 STORAGE_TIMEOUT = 30
+VERIFY_SSL = False
 PWD = Path(__file__).parent
 
 
@@ -89,7 +94,7 @@ async def get_api_data(session: ClientSession, url: str, access_token: str, para
     data = []
     try:
         while True:
-            async with (session.get(url, headers=headers, params=params) as response):
+            async with (session.get(url, headers=headers, params=params, ssl=VERIFY_SSL) as response):
                 if int(response.status) == 200:
                     json_data = await response.json()
                     #print(url, items_key, json_data)
