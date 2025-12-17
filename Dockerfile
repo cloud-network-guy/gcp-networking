@@ -1,8 +1,8 @@
-FROM python:3.13-alpine
+FROM python:3.14-alpine
 WORKDIR /tmp
-COPY ./requirements.txt ./
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+COPY ./pyproject.toml ./
+RUN pip install . --break-system-packages
 ENV PORT=8080
 ENV APP_DIR=/opt/apps/gcp-networking
 ENV APP_APP=app:app

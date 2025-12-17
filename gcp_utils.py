@@ -1,6 +1,7 @@
 from pathlib import Path
 from urllib import parse
 from asyncio import gather
+from os import environ
 import google.auth
 import google.auth.transport.requests
 from google.oauth2 import service_account
@@ -41,10 +42,12 @@ async def get_access_token(key_file: str = None, quota_project_id: str = None) -
         # Convert relative to full path
         key_file = PWD.joinpath(key_file)
         assert key_file.exists(), f"JSON key file not found: '{key_file}'"
+        environ.update({'GOOGLE_APPLICATION_CREDENTIALS': key_file.__str__()})
         credentials = service_account.Credentials.from_service_account_file(str(key_file), scopes=SCOPES)
     else:
         # Authenticate via ADC
         credentials, project_id = google.auth.default(scopes=SCOPES, quota_project_id=quota_project_id)
+
     # Generate access token
     _ = google.auth.transport.requests.Request()
     credentials.refresh(_)

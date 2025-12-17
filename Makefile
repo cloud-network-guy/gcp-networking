@@ -3,6 +3,8 @@ HOST := us-docker.pkg.dev
 REPO := cloudbuild
 PROJECT_ID := myproject
 REGION := us-central1
+PLATFORM := linux/amd64
+DOCKER_PORT := 31280
 
 IMAGE = $(HOST)/$(PROJECT_ID)/$(REPO)/$(SERVICE):latest
 
@@ -11,7 +13,14 @@ include Makefile.env
 all: gcp-setup cloud-build cloud-run-deploy
 
 copy-keys:
-    cp ../../private/gcp_keys/*.json .
+	cp ../../private/gcp_keys/*.json .
+
+docker-build:
+	docker build --tag $(SERVICE) --platform $(PLATFORM) .
+
+docker-run:
+	docker run -p $(DOCKER_PORT)\:$(PORT) $(SERVICE)
+
 gcp-setup:
 	gcloud config set project $(PROJECT_ID)
 
@@ -25,4 +34,4 @@ cloud-run-deploy:
 	gcloud run deploy $(SERVICE) --image $(IMAGE) --platform=managed --allow-unauthenticated
 
 cleanup:
-    rm -f *.json
+	rm -f *.json

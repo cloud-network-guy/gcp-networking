@@ -94,18 +94,18 @@ async def read_data_file(file_name: str, file_format: str = None) -> dict:
     else:
         raise f"Error occurred while reading '{file_name}'"
 
-    if not file_format:
-        file_format = p.suffix.replace('.', '').lower()
+    file_format = file_format.lower() if file_format else p.suffix.replace('.', '').lower()
 
-    with open(file_name, mode="rb") as fp:
-        if file_format == 'yaml':
-            return yaml.load(fp, Loader=yaml.FullLoader)
-        elif file_format == 'json':
-            return json.load(fp)
-        elif file_format == 'toml':
-            return tomli.load(fp)
-        else:
-            raise f"unhandled file format '{file_format}'"
+    file_contents = p.read_text(encoding=ENCODING)
+
+    if file_format == 'yaml':
+        return yaml.load(file_contents, Loader=yaml.FullLoader)
+    elif file_format == 'json':
+        return json.loads(file_contents)
+    elif file_format == 'toml':
+        return tomli.load(file_contents)
+    else:
+        raise f"unhandled file format '{file_format}'"
 
 
 async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
@@ -222,10 +222,12 @@ async def get_platform_info(request: dict) -> dict:
 
     import google.auth
     import distro
+    import aiohttp
 
     distro_info: dict = distro.info()
     server: tuple = request.get('server', ('localhost', 80))
     _ = {
+        'aiohttp_version': aiohttp.__version__,
         'distro_id': distro_info.get('id', "UNKNOWN"),
         'distro_version': distro_info.get('version', "UNKNOWN"),
         'platform_machine': platform.machine(),

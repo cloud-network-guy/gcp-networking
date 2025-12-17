@@ -24,8 +24,13 @@ templates = Jinja2Templates(directory="templates")
 async def _platform(request: Request):
 
     try:
-        _ = await get_platform_info(dict(request))
-        return JSONResponse(content=_, headers=RESPONSE_HEADERS)
+        _ = dict(request)
+        _ = await get_platform_info(_)
+        _.update({
+            'fastapi_version': app.version,
+        })
+        _ = sorted(_.items())
+        return JSONResponse(content=dict(_), headers=RESPONSE_HEADERS)
     except Exception as e:
         return PlainTextResponse(content=format_exc(), status_code=500)
 
