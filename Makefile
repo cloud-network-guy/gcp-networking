@@ -4,7 +4,7 @@ REPO := cloudbuild
 PROJECT_ID := myproject
 REGION := us-central1
 PLATFORM := linux/amd64
-DOCKER_PORT := 31280
+DOCKER_PORT := 38080
 
 IMAGE = $(HOST)/$(PROJECT_ID)/$(REPO)/$(SERVICE):latest
 

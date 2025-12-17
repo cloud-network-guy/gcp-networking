@@ -4,8 +4,8 @@ from datetime import datetime
 from time import time
 from aiohttp import ClientSession
 
-
 class GCPProject:
+
 
     def __init__(self, item: dict):
 
@@ -29,6 +29,8 @@ class GCPProject:
         self.instances = None
         self.gke_clusters = None
         self.forwarding_rules = None
+        self.network_project_id = None   # Shared VPC Host Network Project
+        self.is_network_project = False  # True if this is a Shared VPC Host Network Project
 
     def __repr__(self):
         return str({k: v for k, v in vars(self).items() if v})
@@ -79,6 +81,7 @@ class GCPItem:
 
         self.name = item.get('name')
         self.description = item.get('description', "")
+        self.labels = item.get('labels', {})
         self.kind = item.get('kind')
         self.region = None
         self.zone = None
@@ -102,7 +105,7 @@ class GCPItem:
         else:
             self.region = "global"
         if location := item.get('location'):
-            if location[-2] == '-':
+            if location[-2] == '-':  # this is probably a zone
                 zone = location.split('/')[-1]
                 self.zone = zone
                 self.region = zone[:-2]
@@ -262,8 +265,7 @@ class CloudRouter(GCPNetworkItem):
             self.interfaces.append(_)
 
         self.bgp_peers = []
-        bgp_peers = item.get('bgpPeers', [])
-        for bgp_peer in bgp_peers:
+        for bgp_peer in item.get('bgpPeers', []):
             _ = {
                 'name': bgp_peer.get('name'),
                 'ip_address': bgp_peer.get('ipAddress'),
@@ -604,3 +606,27 @@ class PSAConnection:
 
     def __str__(self):
         return str({k: v for k, v in vars(self).items() if v})
+
+
+class GCSBucket(GCPItem):
+
+    def __init__(self, item: dict):
+
+         super().__init__(item)
+
+         self.objects = []
+
+
+class NetappVolume(GCPItem):
+
+    def __init__(self, item: dict):
+
+         super().__init__(item)
+
+         self.ip_address = None
+         self.network_id = None
+         self.network_name = None
+
+
+
+
