@@ -21,16 +21,23 @@ class GCPProject:
             self.create_timestamp = 0
         self.creation = str(datetime.fromtimestamp(self.create_timestamp))  
 
+        # Try to find parent folder
         parent_folder_id = None
         if parent := item.get('parent'):
             if parent.get('type') == 'folder':
                 parent_folder_id = parent.get('id')
         self.parent_folder_id = int(parent_folder_id) if parent_folder_id else 000000000
+
+
+        self.is_network_project = True if item.get('xpnProjectStatus') == "HOST" else False
+        self.network_project_id = None  # Shared VPC Host Network Project
+        if not self.is_network_project:
+            # Call getXpnHost()
+            self.network_project_id = None
+
         self.instances = None
         self.gke_clusters = None
         self.forwarding_rules = None
-        self.network_project_id = None   # Shared VPC Host Network Project
-        self.is_network_project = False  # True if this is a Shared VPC Host Network Project
 
     def __repr__(self):
         return str({k: v for k, v in vars(self).items() if v})

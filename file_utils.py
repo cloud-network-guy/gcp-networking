@@ -2,12 +2,11 @@ from sys import version
 from os import environ
 from pathlib import Path
 import platform
-import csv
+#import csv
 import json
 import yaml
 import tomli
 import tomli_w
-
 
 ENCODING = 'utf-8'
 SCOPES = ['https://www.googleapis.com/auth/cloud-platform']
@@ -24,7 +23,6 @@ def get_home_dir(os: str = None) -> str:
     home_dir_key = "USERPROFILE" if os.lower().startswith("win") else "HOME"
     _ = environ.get(home_dir_key)
     return _
-
 
 def get_docs_dir() -> Path:
 
@@ -86,27 +84,30 @@ async def write_to_excel(sheets: dict, file_name: str = "Book1.xlsx", start_row:
 
 async def read_data_file(file_name: str, file_format: str = None) -> dict:
 
+    file_data = {}
+
     if p := Path(file_name):
         if not p.is_file():
-            open(p, 'a').close()  # Create an empty file
-        if p.stat().st_size == 0:
-            return {}  # File exists, but is empty
+            p.open(mode="a", encoding=ENCODING).close()  # Create an empty file
     else:
         raise f"Error occurred while reading '{file_name}'"
 
+    if p.stat().st_size == 0:
+        return file_data  # File exists, but is empty
+
     file_format = file_format.lower() if file_format else p.suffix.replace('.', '').lower()
 
-    file_contents = p.read_text(encoding=ENCODING)
+    with p.open(mode="rb") as file_handle:
+        if file_format == 'yaml':
+            file_data = yaml.load(file_handle, Loader=yaml.FullLoader)
+        elif file_format == 'json':
+            file_data = json.load(file_handle)
+        elif file_format == 'toml':
+            file_data = tomli.load(file_handle)
+        else:
+            raise f"unhandled file format '{file_format}'"
 
-    if file_format == 'yaml':
-        return yaml.load(file_contents, Loader=yaml.FullLoader)
-    elif file_format == 'json':
-        return json.loads(file_contents)
-    elif file_format == 'toml':
-        return tomli.load(file_contents)
-    else:
-        raise f"unhandled file format '{file_format}'"
-
+    return file_data
 
 async def write_data_file(file_name: str, file_contents: any = None, file_format: str = None) -> None:
 
