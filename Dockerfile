@@ -10,10 +10,10 @@ RUN mkdir -p $APP_DIR
 RUN mkdir -p /opt/private/gcp_keys
 COPY *.py $APP_DIR/
 COPY *.toml $APP_DIR/
-COPY settings.yaml $APP_DIR/
+RUN touch $APP_DIR/settings.yaml
 COPY static/ $APP_DIR/static/
 COPY templates/ $APP_DIR/templates/
-COPY *.json /opt/private/gcp_keys/
+#COPY *.json /opt/private/gcp_keys/
 #CMD ["pip", "list"]
 ENTRYPOINT cd $APP_DIR && uvicorn $APP_APP --host 0.0.0.0 --port $PORT
 EXPOSE $PORT
