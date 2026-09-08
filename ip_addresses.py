@@ -8,7 +8,7 @@ from gcp_utils import get_access_token, get_projects, get_api_data, get_instance
 from gcp_classes import Instance, ForwardingRule, CloudRouter, GKECluster, CloudSQL
 
 COLUMNS = ('ip_address', 'type', 'project_id', 'region', 'name', 'network_key')
-SORT_COLUMN = 'ip_address'
+OBJECT_FIELDS = ('name', 'project_id', 'region', 'network_key', 'network_name')
 XLSX_FILE = "ip_addresses.xlsx"
 
 
@@ -18,7 +18,7 @@ async def main():
         settings = await get_settings()
         access_token = await get_access_token(settings.get('key_file'))
     except Exception as e:
-        quit(e)
+        quit(format(e))
 
     # Create Session and get all projects
     session = ClientSession(raise_for_status=False)
@@ -65,7 +65,7 @@ async def main():
     forwarding_rules = [ForwardingRule(_) for _ in _]
     
     for forwarding_rule in forwarding_rules:
-        _ = {k: getattr(forwarding_rule, k) for k in ('name', 'project_id', 'region', 'network_key', 'network_name')}
+        _ = {k: getattr(forwarding_rule, k) for k in OBJECT_FIELDS}
         _.update({
             'ip_address': forwarding_rule.ip_address,
             'type': "Forwarding Rule",
@@ -99,7 +99,7 @@ async def main():
                     nat_ips.extend(nat_status.get('autoAllocatedNatIps', []))
                     nat_ips.extend(nat_status.get('userAllocatedNatIps', []))
             for nat_ip in nat_ips:
-                _ = {k: getattr(router, k) for k in ('name', 'project_id', 'region', 'network_key', 'network_name')}
+                _ = {k: getattr(router, k) for k in OBJECT_FIELDS}
                 _.update({
                     'ip_address': nat_ip,
                     'type': "Cloud NAT External IP",
@@ -114,7 +114,7 @@ async def main():
     gke_clusters = [GKECluster(_) for _ in _]
     for gke_cluster in gke_clusters:
         for endpoint_ip in gke_cluster.endpoint_ips:
-            _ = {k: getattr(gke_cluster, k) for k in ('name', 'project_id', 'region', 'network_key', 'network_name')}
+            _ = {k: getattr(gke_cluster, k) for k in OBJECT_FIELDS}
             _.update({
                 'ip_address': endpoint_ip,
                 'type': "GKE Endpoint",
@@ -132,7 +132,7 @@ async def main():
 
     for cloud_sql in cloud_sqls:
         for ip_address in cloud_sql.ip_addresses:
-            _ = {k: getattr(cloud_sql, k) for k in ('name', 'project_id', 'region', 'network_key', 'network_name')}
+            _ = {k: getattr(cloud_sql, k) for k in OBJECT_FIELDS}
             _.update({
                 'ip_address': ip_address,
                 'type': "Cloud SQL Instance",
@@ -144,8 +144,14 @@ async def main():
         if not _.get('ip_address'):
             _.update({'ip_address': "192.0.2.0"})
 
-    print("Checkpoint for null values...")
-    ip_addresses = sorted(ip_addresses, key=lambda x: IPv4Address(x[SORT_COLUMN]), reverse=False)
+    # Structure the data so each item uses the same dictionary keys in the same order
+    structed_data = []
+    for ip_address in ip_addresses:
+        _ = {k: ip_address.get(k) for k in COLUMNS}
+        structed_data.append(_)
+
+    # Sort the data by IP address using IPv4Address class
+    ip_addresses = sorted(structed_data, key=lambda x: IPv4Address(x['ip_address']), reverse=False)
     return ip_addresses
 
 
@@ -153,8 +159,10 @@ if __name__ == "__main__":
 
     from collections import Counter
     data = run(main())
-    ips_by_project = Counter(item['region'] for item in data)
+    ips_by_project = Counter(item['project_id'] for item in data)
     print(ips_by_project)
+    ips_by_region = Counter(item['region'] for item in data)
+    print(ips_by_region)
     #print([item for item in data if "ems" in item['project_id']])
     """
     data = []

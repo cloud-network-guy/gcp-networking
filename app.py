@@ -14,6 +14,8 @@ RESPONSE_HEADERS = {
     'Pragma': "no-cache"
 }
 PLAIN_CONTENT_TYPE = "text/plain"
+WEB_HOST = "0.0.0.0"
+WEB_PORT = 8000
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -319,5 +321,5 @@ if __name__ == '__main__':
 
     import uvicorn
 
-    uvicorn.run("app:app", host='127.0.0.1', port=8000, workers=1, reload=True, reload_delay=2)
+    uvicorn.run("app:app", host=WEB_HOST, port=WEB_PORT, workers=1, reload=True, reload_delay=2)
     #uvicorn.run(app, host='127.0.0.1', port=8000)

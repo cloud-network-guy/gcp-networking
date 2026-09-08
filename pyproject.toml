@@ -17,6 +17,7 @@ dependencies = [
     "google-auth>=2.35.0",
     "jinja2>=3.1.4",
     "multidict>=6.1.0",
+    "nicegui>=3.16.0",
     "oauthlib>=3.2.2",
     "openpyxl>=3.1.5",
     "pyyaml>=6.0.2",
