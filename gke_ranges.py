@@ -19,14 +19,18 @@ async def main() -> list:
     # Get Projects and Services Projects
     projects = await get_projects(access_token)
     host_project_id = settings.get('host_project_id')
+    print("Getting GKE clusters using Host Project ID: {}".format(host_project_id))
     _ = await get_service_projects(host_project_id, access_token)
     service_projects = [p for p in projects if p.id in _]
+    print("Found {} Shared VPC Service Projects".format(len(service_projects)))
 
+    # Start an AIO HTTP Client Session
     session = ClientSession(raise_for_status=False)
+
+    # Get all Subnetworks defined in the Host Network Project
     subnets = await get_subnets(host_project_id, access_token, session=session)
     subnets = [s for s in subnets if s.purpose == "PRIVATE" and len(s.secondary_ranges) > 0]
     subnets = sorted(subnets, key=lambda x: x.key, reverse=False)
-
     subnets_by_key = {s.key: s for s in subnets}
 
     # Populate a dictionary of range names
@@ -41,6 +45,19 @@ async def main() -> list:
     for p in service_projects:
         if p.gke_clusters:
             gke_clusters.extend(p.gke_clusters)
+
+    fields = ('name', 'region', 'creation_timestamp', 'creation', 'subnet_name', 'master_range', 'endpoint_ips', 'pods_range', 'pods_cidr', 'services_cidr')
+
+    data = []
+    for gke_cluster in gke_clusters:
+        _ = {k: getattr(gke_cluster, k, "unknown") for k in fields}
+        _.update({
+            'public_endpoint_ip': _['endpoint_ips'][0],
+            'private_endpoint_ip': _['endpoint_ips'][1],
+        })
+        _.pop('endpoint_ips')
+        data.append(_)
+    data = sorted(data, key=lambda k: k['creation_timestamp'], reverse=True)
 
     # Populate subnet ranges with the allocated GKE Cluster name
     for gke_cluster in gke_clusters:
@@ -69,13 +86,12 @@ if __name__ == "__main__":
     from pprint import pprint
     from file_utils import write_to_excel
 
-    _data = run(main())
-    pprint(_data)
 
     sheets = {
-        'ranges': {'description': "Subnet Additional Ranges"},
+        'ranges': {'description': "CoreArchive Commercial GKE Clusters"},
     }
-    sheets['ranges']['data'] = _data
+    _ = run(main())
+    #pprint(_)
+    sheets['ranges']['data'] = _
 
-    # Create and save the Excel workbook
     _ = run(write_to_excel(sheets, XLSX_FILE))
