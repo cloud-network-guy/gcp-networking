@@ -1,7 +1,7 @@
 aiofiles==23.2.1
 aiohttp==3.10.5
 crc32c==2.7.1
-cryptography==44.0.0
+cryptography==50.0.2
 distro==1.9.0
 fastapi==0.115.4
 gcloud-aio-auth==5.3.2
